@@ -19,26 +19,33 @@ lres = integrate(mya, myb)
 # if rank == 1
 #     @show lres
 # end
+req = Vector{MPI.Request}(undef, size-1)
 if rank == 0
-    my_ans = 0.0
     res = fill(0.0, size)
     res[1] = lres
-    # @show res
-    req = Vector{MPI.Request}(undef, size-1)
+    # @show res[1]
+    # req = MPI.Request()
+    # req = Vector{MPI.Request}(undef, size-1)
+    # req = fill(MPI.Request, size-1)
     for i in 1:size-1
-        MPI.Irecv!(res[i+1], i, comm, req[i])
+        req[i] = MPI.Irecv!(res, i, 0, comm)
         # println("ji")
     end
-    if rank == 0
-        MPI.Waitall!(req)
-    end
+    @show res
+    MPI.Waitall(req)
+    @show res
 
-    for num in res
-        global my_ans += num
+    my_ans = 0.0
+    for j in 1:size
+        @show res
+        global my_ans += res[j]
     end
-    print("Result of integration is $my_ans")
+    println("Result of integration is $my_ans")
 else
-    MPI.send(lres, comm, dest=0)
+    # if rank == 2
+    #     @show lres
+    # end
+    MPI.send(lres, 0, 0, comm)
 end
 
 MPI.Finalize()
