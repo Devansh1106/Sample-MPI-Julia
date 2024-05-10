@@ -24,12 +24,10 @@ if rank == 0
     res = fill(0.0, size)
     res[1] = lres
     # @show res[1]
-    # req = MPI.Request()
-    # req = Vector{MPI.Request}(undef, size-1)
-    # req = fill(MPI.Request, size-1)
+    req = Vector{MPI.Request}(undef, size-1)
+
     for i in 1:size-1
         req[i] = MPI.Irecv!(res, i, 0, comm)
-        # println("ji")
     end
     @show res
     MPI.Waitall(req)
