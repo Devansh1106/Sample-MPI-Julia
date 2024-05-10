@@ -25,4 +25,3 @@ recv_buf = MPI.Reduce(res, +, comm, root=0)
 if rank == 0
     println("Result of the integration is: $(recv_buf)")
 end
-

@@ -29,7 +29,10 @@ if rank == 0
         MPI.Irecv!(res[i+1], i, comm, req[i])
         # println("ji")
     end
-    MPI.Waitall!(req)
+    if rank == 0
+        MPI.Waitall!(req)
+    end
+
     for num in res
         global my_ans += num
     end
