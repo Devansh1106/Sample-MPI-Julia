@@ -8,7 +8,7 @@ function solver()
     xmin, xmax = 0, 1  # [xmin, xmax]
     a = 1   # velocity
     N, t = 100, 1   # N= number of grid points, t = final time
-    dx = (xmax - xmin)/N
+    dx = (xmax - xmin)/(N-1)
     cfl = 0.8
     dt = (cfl * dx)/abs(a)
     # println(dx, dt)
@@ -43,11 +43,12 @@ for i in 1:N
     global x[i] = xmin + (i-1)*dx
     # global t_[i] = (i-1)*dt
 end
+@show x
 u = initial_u(N, x, u)
 j = 0
 it = 0
 
-while j < t
+while j < t && it < 100
     global unew = update_lw(u, cfl, unew)
     global u = unew
     global j += dt
