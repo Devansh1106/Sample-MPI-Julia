@@ -19,7 +19,7 @@ function param_input()
 end
 
 # To generate a initial solution through initial condition
-function initial_u(N, x, u)
+function initial_u!(N, x, u)
     for i in 1:N
         u[i] = sin(2.0 * π * x[i])
     end
@@ -27,7 +27,7 @@ function initial_u(N, x, u)
 end
 
 # Lex-Wendroff method 
-function update_lw(u, cfl, unew)
+function update_lw!(u, cfl, unew)
     unew[1] = u[1] - 0.5*cfl*(u[2] - u[end-1]) + 0.5*cfl*cfl*(u[end-1] - 2*u[1] + u[2])   # u[0] = u[end-1] due to periodic bc
     unew[2:end-1] = u[2:end-1] - 0.5*cfl*(u[3:end] - u[1:end-2]) + 0.5*cfl*cfl*(u[1:end-2] - 2*u[2:end-1] + u[3:end])
     unew[end] = u[end] - 0.5*cfl*(u[2] - u[end-1]) + 0.5*cfl*cfl*(u[end-1] - 2*u[end] + u[2]) # u[end+1] = u[2] due to periodic bc
@@ -35,7 +35,7 @@ function update_lw(u, cfl, unew)
 end
 
 # Exact solution calculation
-function exact_solution(x, N, t, a, exact_sol)
+function exact_solution!(x, N, t, a, exact_sol)
     for i in 1:N
         exact_sol[i] = sin(2.0 * π * (x[i]-(a * t)))
     end
@@ -62,10 +62,10 @@ function solver()
     for i in 1:N
         x[i] = xmin + (i-1)*dx
     end
-    exact_sol_ = exact_solution(x, N, t, a, exact_sol)
+    exact_sol_ = exact_solution!(x, N, t, a, exact_sol)
 
     # Invoking initial condition
-    u_ini = initial_u(N, x, u)
+    u_ini = initial_u!(N, x, u)
 
     j = 0.0
     it = 0.0
@@ -79,7 +79,7 @@ function solver()
         end
         # ---------------------------------
 
-        unew = update_lw(u_ini, cfl, unew)
+        unew = update_lw!(u_ini, cfl, unew)
         u_ini .= unew           # Use . for element-wise operation on vector
         j += dt
         it += 1
