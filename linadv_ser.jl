@@ -4,6 +4,8 @@
 # u(x) = sin(2πx)
 # Computational domain [0,1]
 
+using Plots
+gr()
 # To generate param.a initial solution through initial condition
 function initial_u!(param, x, u)
     for i in 1:param.N
@@ -53,7 +55,7 @@ function solver(param)
     it = 0.0
 
     println("Enter the cfl: ")
-    cfl = readline()
+    cfl = readline()                # should be less than 1.0
     cfl = parse(Float64, cfl)
     dt = cfl * dx / abs(a)
     sigma = abs(a) * dt / dx        # as a substitute to cfl
@@ -80,6 +82,11 @@ function solver(param)
     println("Error is: ", err)
     println("Iterations: ", it)
     println("---------------------------")
+
+    plot(x, exact_sol, label="Exact Solution", linestyle=:solid, linewidth=2,dpi=150)
+    plot!(x, u, label="Numerical Solution", xlabel="Domain", ylabel="solution values(u)", title="Solution Plot",
+        linewidth=2, linestyle=:dot, linecolor="black", dpi=150)
+    savefig("linadv_ser.png")
 end
 
 # for inputting parameters of the simulation
@@ -88,5 +95,8 @@ a = 1   # velocity
 N, t = 400, 1   # N= number of grid points, t = final time
 dx = (xmax - xmin)/(N-1)
 @show N, t, xmin, xmax, a
-param = (; N, t, dx, xmin, a)
+param = (; N,     # show(plot)
+t, dx, xmin, a)
 solver(param)
+
+# Plotting 
