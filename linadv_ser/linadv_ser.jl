@@ -86,17 +86,17 @@ function solver(param)
 
     # Writing solution to Files
     open("../linadv_ser/num_sol.txt","w") do io
-        writedlm(io, u)
+        writedlm(io, [x u], "\t\t")
     end
     open("../linadv_ser/exact_sol.txt","w") do io
-        writedlm(io, exact_sol)
+        writedlm(io, [x exact_sol], "\t\t")
     end
 
-    # Plotting: saved in "linadv_ser.png"
-    plot(x, exact_sol, label="Exact Solution", linestyle=:solid, linewidth=2,dpi=150)
-    plot!(x, u, label="Numerical Solution", xlabel="Domain", ylabel="solution values(u)", title="Solution Plot",
-        linewidth=2, linestyle=:dot, linecolor="black", dpi=150)
-    savefig("../linadv_ser/linadv_ser.png")
+    # # Plotting: saved in "linadv_ser.png"
+    # plot(x, exact_sol, label="Exact Solution", linestyle=:solid, linewidth=2,dpi=150)
+    # plot!(x, u, label="Numerical Solution", xlabel="Domain", ylabel="solution values(u)", title="Solution Plot",
+    #     linewidth=2, linestyle=:dot, linecolor="black", dpi=150)
+    # savefig("../linadv_ser/linadv_ser.png")
 end
 
 # for inputting parameters of the simulation
