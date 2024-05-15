@@ -4,6 +4,7 @@
 # u(x) = sin(2πx)
 # Computational domain [0,1]
 
+using DelimitedFiles
 using Plots
 gr()
 # To generate param.a initial solution through initial condition
@@ -83,20 +84,26 @@ function solver(param)
     println("Iterations: ", it)
     println("---------------------------")
 
+    # Writing solution to Files
+    open("../linadv_ser/num_sol.txt","w") do io
+        writedlm(io, u)
+    end
+    open("../linadv_ser/exact_sol.txt","w") do io
+        writedlm(io, exact_sol)
+    end
+
+    # Plotting: saved in "linadv_ser.png"
     plot(x, exact_sol, label="Exact Solution", linestyle=:solid, linewidth=2,dpi=150)
     plot!(x, u, label="Numerical Solution", xlabel="Domain", ylabel="solution values(u)", title="Solution Plot",
         linewidth=2, linestyle=:dot, linecolor="black", dpi=150)
-    savefig("linadv_ser.png")
+    savefig("../linadv_ser/linadv_ser.png")
 end
 
 # for inputting parameters of the simulation
 xmin, xmax = 0.0, 1.0  # [xmin, xmax]
 a = 1   # velocity
-N, t = 400, 1   # N= number of grid points, t = final time
+N, t = 100, 1   # N = number of grid points, t = final time
 dx = (xmax - xmin)/(N-1)
 @show N, t, xmin, xmax, a
-param = (; N,     # show(plot)
-t, dx, xmin, a)
+param = (; N, t, dx, xmin, a)
 solver(param)
-
-# Plotting 
