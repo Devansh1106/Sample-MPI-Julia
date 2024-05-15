@@ -1,114 +1,92 @@
 # solving linear advection equation:-
-# u_t + a*u_x = 0 with periodic bc taking a = 1
+# u_t + param.a*u_x = 0 with periodic bc taking param.a = 1
 # initial conditions: 
 # u(x) = sin(2πx)
 # Computational domain [0,1]
 
-# for inputting parameters of the simulation
-function param_input()
-    xmin, xmax = 0.0, 1.0  # [xmin, xmax]
-    a = 1   # velocity
-    N, t = 400, 1   # N= number of grid points, t = final time
-    dx = (xmax - xmin)/(N-1)
-    cfl = 0.8
-    dt = (cfl * dx)/abs(a)
-    @show dx
-    @show dt
-    @show N, t, cfl, xmin, xmax, a
-    return N, t, dx, cfl, dt, xmin, a
-end
-
-# To generate a initial solution through initial condition
-function initial_u!(N, x, u)
-    for i in 1:N
+# To generate param.a initial solution through initial condition
+function initial_u!(param, x, u)
+    for i in 1:param.N
         u[i] = sin(2.0 * π * x[i])
     end
-    return u
 end
 
 # Lex-Wendroff method 
-function update_lw!(u, cfl, unew)
-    unew[1] = u[1] - 0.5*cfl*(u[2] - u[end-1]) + 0.5*cfl*cfl*(u[end-1] - 2*u[1] + u[2])   # u[0] = u[end-1] due to periodic bc
-    unew[2:end-1] = u[2:end-1] - 0.5*cfl*(u[3:end] - u[1:end-2]) + 0.5*cfl*cfl*(u[1:end-2] - 2*u[2:end-1] + u[3:end])
-    unew[end] = u[end] - 0.5*cfl*(u[2] - u[end-1]) + 0.5*cfl*cfl*(u[end-1] - 2*u[end] + u[2]) # u[end+1] = u[2] due to periodic bc
-    return unew
+function update_lw!(u, param, unew, sigma)
+    unew[1] = u[1] - 0.5* sigma *(u[2] - u[end-1]) + 0.5*sigma*sigma*(u[end-1] - 2*u[1] + u[2])   # u[0] = u[end-1] due to periodic bc
+    @views unew[2:end-1] .= u[2:end-1] - 0.5*sigma*(u[3:end] - u[1:end-2]) + 0.5*sigma*sigma*(u[1:end-2] - 2*u[2:end-1] + u[3:end])
+    unew[end] = u[end] - 0.5*sigma*(u[2] - u[end-1]) + 0.5*sigma*sigma*(u[end-1] - 2*u[end] + u[2]) # u[end+1] = u[2] due to periodic bc
 end
 
 # Exact solution calculation
-function exact_solution!(x, N, t, a, exact_sol)
-    for i in 1:N
-        exact_sol[i] = sin(2.0 * π * (x[i]-(a * t)))
+function exact_solution!(x, param, exact_sol)
+    for i in 1:param.N
+        exact_sol[i] = sin(2.0 * π * (x[i]-(param.a * param.t)))
     end
-    return exact_sol
 end
 
 # Error calculation
-function error_cal(N, exact_sol, u)
+function error_cal(param, exact_sol, u)
     error = 0.0 
-    error = sum(abs, exact_sol[1:N] - u[1:N])
-    error = error/N
+    error = sum(abs, exact_sol[1:param.N] - u[1:param.N])
+    error = error/param.N
     return error
 end
 
 
-function solver()
-    N, t, dx, cfl, dt, xmin, a = param_input()
-    u = fill(0.0, N)        # Initial solution
-    unew = fill(0.0, N)     # Updated solution
-    x = fill(0.0, N)        # grid array
-    exact_sol = fill(0.0, N) # exact solution array
+function solver(param)
+    u = fill(0.0, param.N)        # Initial solution
+    unew = fill(0.0, param.N)     # Updated solution
+    x = fill(0.0, param.N)        # grid array
+    exact_sol = fill(0.0, param.N)   # exact solution array
     
     # 1-D grid generation
-    for i in 1:N
-        x[i] = xmin + (i-1)*dx
+    for i in 1:param.N
+        x[i] = param.xmin + (i-1)*param.dx
     end
-    exact_sol_ = exact_solution!(x, N, t, a, exact_sol)
+    exact_solution!(x, param, exact_sol)
 
     # Invoking initial condition
-    u_ini = initial_u!(N, x, u)
+    initial_u!(param, x, u)
 
     j = 0.0
     it = 0.0
 
+    println("Enter the cfl: ")
+    cfl = readline()
+    cfl = parse(Float64, cfl)
+    dt = cfl * dx / abs(a)
+    sigma = abs(a) * dt / dx        # as a substitute to cfl
+
+
     while j <= t && it < 500
         # -------Crucial block-------------
         if j + dt > t
-            dt = t - j                  # example: if j= 0.99 (<t) and dt = 0.5 hence if now loop runs it will give solution for final time
-                                        # t = 0.99+0.5 which voilates the condition. Hence need to check this. Not very clear to me!!!
-            cfl = dt * abs(a) / dx
+            dt = t - j                  # example: if j= 0.99 (<param.t) and param.dt = 0.5 hence if now loop runs it will give solution for final time
+                                        # param.t = 0.99+0.5 which voilates the condition. Hence need to check this. Not very clear to me!!!
+            sigma = dt * abs(a) / dx
         end
         # ---------------------------------
 
-        unew = update_lw!(u_ini, cfl, unew)
-        u_ini .= unew           # Use . for element-wise operation on vector
+        update_lw!(u, param, unew, sigma)
+        u .= unew           # Use . for element-wise operation on vector
         j += dt
         it += 1
     end
-    err = error_cal(N, exact_sol_, u)
+    err = error_cal(param, exact_sol, u)
 
-    # Output to terminal
-    println("---------------------------")
-    println("Exact Solution Vector: ")
-    println("---------------------------")
-    println(exact_sol_[1])
-    println(exact_sol_[2])
-    println("⋮")
-    println(exact_sol_[end-1])
-    println(exact_sol_[end])
-    
+    # Output to terminal    
     println("---------------------------")
     println("Error is: ", err)
     println("Iterations: ", it)
     println("---------------------------")
-    
-    println("Numerical Solution vector: ")
-    println("---------------------------")
-    println(u[1])
-    println(u[2])
-    println(u[3])
-    println("⋮")
-    println(u[end-1])
-    println(u[end])
 end
 
-solver()
+# for inputting parameters of the simulation
+xmin, xmax = 0.0, 1.0  # [xmin, xmax]
+a = 1   # velocity
+N, t = 400, 1   # N= number of grid points, t = final time
+dx = (xmax - xmin)/(N-1)
+@show N, t, xmin, xmax, a
+param = (; N, t, dx, xmin, a)
+solver(param)
