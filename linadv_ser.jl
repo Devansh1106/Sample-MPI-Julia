@@ -12,7 +12,7 @@ function initial_u!(param, x, u)
 end
 
 # Lex-Wendroff method 
-function update_lw!(u, param, unew, sigma)
+function update_lw!(u, unew, sigma)
     unew[1] = u[1] - 0.5* sigma *(u[2] - u[end-1]) + 0.5*sigma*sigma*(u[end-1] - 2*u[1] + u[2])   # u[0] = u[end-1] due to periodic bc
     @views unew[2:end-1] .= u[2:end-1] - 0.5*sigma*(u[3:end] - u[1:end-2]) + 0.5*sigma*sigma*(u[1:end-2] - 2*u[2:end-1] + u[3:end])
     unew[end] = u[end] - 0.5*sigma*(u[2] - u[end-1]) + 0.5*sigma*sigma*(u[end-1] - 2*u[end] + u[2]) # u[end+1] = u[2] due to periodic bc
@@ -68,7 +68,7 @@ function solver(param)
         end
         # ---------------------------------
 
-        update_lw!(u, param, unew, sigma)
+        update_lw!(u, unew, sigma)
         u .= unew           # Use . for element-wise operation on vector
         j += dt
         it += 1
