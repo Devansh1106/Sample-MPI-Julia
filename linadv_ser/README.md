@@ -46,7 +46,7 @@ This section explains the `functions` involved in the `linadv_ser.jl` code.
 
     where: $\Delta t$ = time stepping; $\Delta x$ = grid spacing (divide by `N-1` not `N` to avoid problem with boundary conditions)
 
-    $$\sigma == sigma == a \frac{\Delta t}{\Delta x}$$  
+    $$\sigma == sigma == a \frac{\Delta t}{\Delta x}; u(x_i, t_{j+1}) = u_j^{j+1}$$
 
 * `error_cal(param::NamedTuple, exact_sol::Vector{Float64}, u::Vector{Float64})`
     * This function calculates and return absolute error in numerical solution.
