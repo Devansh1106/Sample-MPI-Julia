@@ -63,3 +63,6 @@ This section explains the `functions` involved in the `linadv_ser.jl` code.
     * `Important Point`: Inside `while` loop of this function, there is a `crucial block`. Why is it so?  
         * While looping from `t=0` to `t=t_final`, the looping index `j` can go beyond `t_final` ($j + dt > t$) due to the so value of `dt`.
         * Implemented `if` condition is needed to check the above and if `if` is `true` then `dt` needs to be changed to $dt = t - j$ and hence `sigma` needs to be changed accordingly.
+## Plotting
+* See `Usage` section for plotting of numerical solution along with the exact solution.  
+* Graph will be in the `.png` file.
