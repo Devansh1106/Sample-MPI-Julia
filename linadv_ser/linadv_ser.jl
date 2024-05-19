@@ -1,13 +1,14 @@
 # solving linear advection equation:-
-# u_t + param.a*u_x = 0 with periodic bc taking param.a = 1
+# u_t + a*u_x = 0 with periodic bc taking a = 1
 # initial conditions: 
 # u(x) = sin(2πx)
 # Computational domain [0,1]
 
 using DelimitedFiles
-using Plots
-gr()
-# To generate param.a initial solution through initial condition
+# using Plots
+# gr()
+
+# To generate a initial solution through initial condition
 function initial_u!(param, x, u)
     for i in 1:param.N
         u[i] = sin(2.0 * π * x[i])
@@ -22,7 +23,7 @@ function update_lw!(u, unew, sigma)
 end
 
 # Exact solution calculation
-function exact_solution!(x, param, exact_sol)
+function exact_solution!(param, x, exact_sol)
     for i in 1:param.N
         exact_sol[i] = sin(2.0 * π * (x[i]-(param.a * param.t)))
     end
@@ -47,7 +48,7 @@ function solver(param)
     for i in 1:param.N
         x[i] = param.xmin + (i-1)*param.dx
     end
-    exact_solution!(x, param, exact_sol)
+    exact_solution!(param, x, exact_sol)
 
     # Invoking initial condition
     initial_u!(param, x, u)
@@ -57,8 +58,8 @@ function solver(param)
 
     println("Enter the cfl: ")
     cfl = readline()                # should be less than 1.0
-    cfl = parse(Float64, cfl)
-    dt = cfl * dx / abs(a)
+    cfl = parse(Float64, cfl)       # parse() will convert it to Float64
+    dt = cfl * dx / abs(a)          # readline() input it as string
     sigma = abs(a) * dt / dx        # as a substitute to cfl
 
 
@@ -85,10 +86,10 @@ function solver(param)
     println("---------------------------")
 
     # Writing solution to Files
-    open("../linadv_ser/num_sol.txt","w") do io
+    open("/home/devansh/Sample-MPI-Julia/linadv_ser/num_sol.txt","w") do io
         writedlm(io, [x u], "\t\t")
     end
-    open("../linadv_ser/exact_sol.txt","w") do io
+    open("/home/devansh/Sample-MPI-Julia/linadv_ser/exact_sol.txt","w") do io
         writedlm(io, [x exact_sol], "\t\t")
     end
 
