@@ -15,6 +15,9 @@ function initial_u!(param, x, u)
     end
 end
 
+# @views --> avoids unnecessary memory allocations while assignment by creating "view"
+# a "view" provides a way to access and modify a subset of an array w/o creating a new array
+
 # Lex-Wendroff method 
 function update_lw!(u, unew, sigma)
     unew[1] = u[1] - 0.5* sigma *(u[2] - u[end-1]) + 0.5*sigma*sigma*(u[end-1] - 2*u[1] + u[2])   # u[0] = u[end-1] due to periodic bc
@@ -49,7 +52,6 @@ function solver(param)
         x[i] = param.xmin + (i-1)*param.dx
     end
     exact_solution!(param, x, exact_sol)
-
     # Invoking initial condition
     initial_u!(param, x, u)
 
