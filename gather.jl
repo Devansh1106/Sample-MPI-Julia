@@ -1,3 +1,5 @@
+# Squaring each entry of the array using `gather` operation
+
 using MPI
 MPI.Init()
 

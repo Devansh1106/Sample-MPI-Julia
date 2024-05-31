@@ -11,14 +11,13 @@ function integrate(a::Float64, b::Float64)
 end
 
 leftB::Float64 = 0.0
-rightB::Float64 = 2.0
+rightB::Float64 = 5.0
 step_size = (rightB - leftB)/size
 
 left_ = *(step_size, rank)
 right_ = +(step_size, left_)
 
 res = integrate(left_, right_)
-MPI.Barrier(comm)
 
 recv_buf = MPI.Reduce(res, +, comm, root=0)
 
