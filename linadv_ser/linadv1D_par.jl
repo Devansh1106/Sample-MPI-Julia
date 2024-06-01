@@ -22,11 +22,6 @@ end
 
 # Lex-Wendroff method 
 function update_lw!(u, unew, sigma)
-    # local_start = rank*N + 1
-    # local_end = (rank + 1) * N
-    # unew[local_start] = u[local_start] - 0.5* sigma *(u[local_start + 1] - u[local_end-1]) + 0.5*sigma*sigma*(u[local_end-1] - 2*u[local_start] + u[local_start+1])   # u[0] = u[end-1] due to periodic bc
-    # @views unew[local_start + 1:local_end - 1] .= u[local_start+1:local_end-1] - 0.5*sigma*(u[local_start+2:local_end] - u[local_start:local_end-2]) + 0.5*sigma*sigma*(u[local_start:local_end-2] - 2*u[local_start+1:local_end-1] + u[local_start+2:local_end])
-    # unew[local_end] = u[local_end] - 0.5*sigma*(u[local_start+1] - u[local_end-1]) + 0.5*sigma*sigma*(u[local_end-1] - 2*u[local_end] + u[local_start+1]) # u[end+1] = u[2] due to periodic bc
     unew[1] = u[1] - 0.5* sigma *(u[2] - u[end-1]) + 0.5*sigma*sigma*(u[end-1] - 2*u[1] + u[2])   # u[0] = u[end-1] due to periodic bc
     @views unew[2:end-1] .= u[2:end-1] - 0.5*sigma*(u[3:end] - u[1:end-2]) + 0.5*sigma*sigma*(u[1:end-2] - 2*u[2:end-1] + u[3:end])
     unew[end] = u[end] - 0.5*sigma*(u[2] - u[end-1]) + 0.5*sigma*sigma*(u[end-1] - 2*u[end] + u[2]) # u[end+1] = u[2] due to periodic bc
@@ -51,7 +46,7 @@ end
 xmin, xmax = 0.0, 1.0  # [xmin, xmax]
 a = 1   # velocity
 N, t = 100, 1   # N = number of grid points, t = final time
-N = div(N, size)    # / -> converts N to float; div() doesn't
+N = div(N, size)    # / -> converts N to float; div() doesn't;   change in error_cal also
 grid_per_rank = (xmax - xmin)/size
 xmin = 0.0 + rank*grid_per_rank
 xmax = xmin + grid_per_rank
@@ -85,22 +80,17 @@ function solver(param)
         cfl = parse(Float64, cfl)       # parse() will convert it to Float64
         dt = cfl * dx / abs(a)          # readline() input it as string
         sigma = abs(a) * dt / dx        # as a substitute to cfl
-        # buf = (dt, sigma)
         buf[1] = dt
         buf[2] = sigma
-        # MPI.bcast(buf, comm, root=0)
     end
-    # println(buf)
-    # buf::Tuple{Float64, Float64}
     buf = MPI.bcast(buf, 0, comm)
-
 
 
     while j <= t && it < 500
         # -------Crucial block-------------
         if j + buf[1] > t
             buf[1] = t - j                  # example: if j= 0.99 (<param.t) and param.dt = 0.5 hence if now loop runs it will give solution for final time
-                                        # param.t = 0.99+0.5 which voilates the condition. Hence need to check this. Not very clear to me!!!
+                                            # param.t = 0.99+0.5 which voilates the condition. Hence need to check this. Not very clear to me!!!
             buf[2] = buf[1] * abs(a) / dx
         end
         # ---------------------------------
