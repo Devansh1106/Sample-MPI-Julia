@@ -43,7 +43,7 @@ end
 function error_cal(param, exact_sol, u)
     error = 0.0 
     error = sum(abs, exact_sol[1:param.N] - u[1:param.N])
-    error = error/param.N
+    error = error/param.N/size
     return error
 end
 
