@@ -14,9 +14,9 @@ size = MPI.Comm_size(comm)
 
 
 # To generate a initial solution through initial condition
-function initial_u!(param, x_local, u)
+function initial_u!(param, x, u)
     for i in 1:param.N
-        u[i] = sin(2.0 * π * x_local[i])
+        u[i] = sin(2.0 * π * x[i])
     end
 end
 
@@ -28,9 +28,9 @@ function update_lw!(u, unew, sigma)
 end
 
 # Exact solution calculation
-function exact_solution!(param, x_local, exact_sol)
+function exact_solution!(param, x, exact_sol)
     for i in 1:param.N
-        exact_sol[i] = sin(2.0 * π * (x_local[i]-(param.a * param.t)))
+        exact_sol[i] = sin(2.0 * π * (x[i]-(param.a * param.t)))
     end
 end
 
@@ -46,31 +46,11 @@ end
 xmin, xmax = 0.0, 1.0  # [xmin, xmax]
 a = 1   # velocity
 N, t = 100, 1   # N = number of grid points, t = final time
-dx = (xmax - xmin)/(N - 1)
-x = nothing
-if rank == 0
-    x = fill(0.0, N)        # grid array
-end
-
-if rank == 0
-    # 1-D grid generation
-    for i in 1:N
-        x[i] = xmin + (i-1)*dx
-    end
-end
-
 N = div(N, size)    # / -> converts N to float; div() doesn't;   change in error_cal also
-x_local = fill(0.0, N)        # This 'N' is different
-
-MPI.Scatter!(x, x_local, 0, comm)
-# @show x_local
-# exit()
-
-
 grid_per_rank = (xmax - xmin)/size
-
 xmin = 0.0 + rank*grid_per_rank
 xmax = xmin + grid_per_rank
+dx = (xmax - xmin)/(N - grid_per_rank)
 
 @show N, t, xmin, xmax, a, dx
 param = (; N, t, dx, xmin, a)
@@ -79,11 +59,16 @@ param = (; N, t, dx, xmin, a)
 function solver(param)
     u = fill(0.0, param.N)        # Initial solution
     unew = fill(0.0, param.N)     # Updated solution
+    x = fill(0.0, param.N)        # grid array
     exact_sol = fill(0.0, param.N)   # exact solution array
     
-    exact_solution!(param, x_local, exact_sol)
+    # 1-D grid generation
+    for i in 1:param.N
+        x[i] = param.xmin + (i-1)*param.dx
+    end
+    exact_solution!(param, x, exact_sol)
     # Invoking initial condition
-    initial_u!(param, x_local, u)
+    initial_u!(param, x, u)
 
     j = 0.0
     it = 0.0
@@ -138,7 +123,7 @@ function solver(param)
 
 
     final_sol = MPI.Gather(u, comm, root=0)
-    x_final = MPI.Gather(x_local, comm, root=0)
+    x_final = MPI.Gather(x, comm, root=0)
     exact_sol_final = MPI.Gather(exact_sol, comm, root=0)
 
 
@@ -152,8 +137,8 @@ function solver(param)
     end
 
     # # Plotting: saved in "linadv_ser.png"
-    # plot(x_final, exact_sol, label="Exact Solution", linestyle=:solid, linewidth=2,dpi=150)
-    # plot!(x_final, u, label="Numerical Solution", xlabel="Domain", ylabel="solution values(u)", title="Solution Plot",
+    # plot(x, exact_sol, label="Exact Solution", linestyle=:solid, linewidth=2,dpi=150)
+    # plot!(x, u, label="Numerical Solution", xlabel="Domain", ylabel="solution values(u)", title="Solution Plot",
     #     linewidth=2, linestyle=:dot, linecolor="black", dpi=150)
     # savefig("../linadv_ser/linadv_ser.png")
 end
