@@ -15,7 +15,7 @@ size = MPI.Comm_size(comm)
 
 # To generate a initial solution through initial condition
 function initial_u!(param, x, u)
-    for i in 1:param.N
+    for i in 1:param.N_local
         u[i] = sin(2.0 * π * x[i])
     end
 end
@@ -29,7 +29,7 @@ end
 
 # Exact solution calculation
 function exact_solution!(param, x, exact_sol)
-    for i in 1:param.N
+    for i in 1:param.N_local
         exact_sol[i] = sin(2.0 * π * (x[i]-(param.a * param.t)))
     end
 end
@@ -37,8 +37,8 @@ end
 # Error calculation
 function error_cal(param, exact_sol, u)
     error = 0.0 
-    error = sum(abs, exact_sol[1:param.N] - u[1:param.N])
-    error = error/param.N/size
+    error = sum(abs, exact_sol[1:param.N_local] - u[1:param.N_local])
+    error = error/param.N_local/size
     return error
 end
 
@@ -46,24 +46,24 @@ end
 xmin, xmax = 0.0, 1.0  # [xmin, xmax]
 a = 1   # velocity
 N, t = 100, 1   # N = number of grid points, t = final time
-N = div(N, size)    # / -> converts N to float; div() doesn't;   change in error_cal also
+N_local = div(N, size)    # / -> converts N to float; div() doesn't;   change in error_cal also
 grid_per_rank = (xmax - xmin)/size
 xmin = 0.0 + rank*grid_per_rank
 xmax = xmin + grid_per_rank
-dx = (xmax - xmin)/(N - grid_per_rank)
+dx = (xmax - xmin)/(N_local - grid_per_rank)
 
-@show N, t, xmin, xmax, a, dx
-param = (; N, t, dx, xmin, a)
+@show N_local, t, xmin, xmax, a, dx
+param = (; N_local, t, dx, xmin, a)
 
 
 function solver(param)
-    u = fill(0.0, param.N)        # Initial solution
-    unew = fill(0.0, param.N)     # Updated solution
-    x = fill(0.0, param.N)        # grid array
-    exact_sol = fill(0.0, param.N)   # exact solution array
+    u = fill(0.0, param.N_local)        # Initial solution
+    unew = fill(0.0, param.N_local)     # Updated solution
+    x = fill(0.0, param.N_local)        # grid array
+    exact_sol = fill(0.0, param.N_local)   # exact solution array
     
     # 1-D grid generation
-    for i in 1:param.N
+    for i in 1:param.N_local
         x[i] = param.xmin + (i-1)*param.dx
     end
     exact_solution!(param, x, exact_sol)
@@ -104,9 +104,9 @@ function solver(param)
     global_err = MPI.Reduce(local_err, +, comm, root=0)
 
     if rank == 0
-        final_sol = fill(0.0, size * N)
-        x_final = fill(0.0, size * N)
-        exact_sol_final = fill(0.0, size * N)
+        final_sol = fill(0.0, size * N_local)
+        x_final = fill(0.0, size * N_local)
+        exact_sol_final = fill(0.0, size * N_local)
         # Output to terminal    
         println("---------------------------")
         println("Error is: ", global_err)
