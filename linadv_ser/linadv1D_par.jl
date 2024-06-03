@@ -15,16 +15,42 @@ size = MPI.Comm_size(comm)
 
 # To generate a initial solution through initial condition
 function initial_u!(param, x, u)
-    for i in 1:param.N_local
-        u[i] = sin(2.0 * π * x[i])
+    for i in 2:param.N_local + 1
+        u[i] = sin(2.0 * π * x[i-1])
     end
 end
 
+# getting boundary values and halo exchanges
+function get_ghost_values!(param, u)
+    if size == 1
+        u[1] = u[param.N_local]
+        u[param.N_local + 2] = u[3]
+        return
+    end
+    next = (rank + 1) % size
+    prev = (rank + size - 1) % size
+    if rank == 0
+        MPI.send(u[N_local+1], comm, dest=next, tag=next)
+        MPI.send(u[3], comm, dest=prev, tag=prev)
+        u[N_local + 2] = MPI.recv(comm; source=next, tag=rank)
+        u[1] = MPI.recv(comm; source=prev, tag=rank)
+    elseif rank == size - 1
+        MPI.send(u[N_local], comm, dest=next, tag=next)
+        MPI.send(u[2], comm, dest=prev, tag=prev)
+        u[N_local + 2] = MPI.recv(comm; source=next, tag=rank)
+        u[1] = MPI.recv(comm; source=prev, tag=rank)
+    else
+        MPI.send(u[N_local + 1], comm, dest=next, tag=next)
+        MPI.send(u[2], comm, dest=prev, tag=prev)
+        u[N_local + 2] = MPI.recv(comm; source=next, tag=rank)
+        u[1] = MPI.recv(comm; source=prev, tag=rank)
+    end
+end
+
+
 # Lex-Wendroff method 
 function update_lw!(u, unew, sigma)
-    unew[1] = u[1] - 0.5* sigma *(u[2] - u[end-1]) + 0.5*sigma*sigma*(u[end-1] - 2*u[1] + u[2])   # u[0] = u[end-1] due to periodic bc
-    @views unew[2:end-1] .= u[2:end-1] - 0.5*sigma*(u[3:end] - u[1:end-2]) + 0.5*sigma*sigma*(u[1:end-2] - 2*u[2:end-1] + u[3:end])
-    unew[end] = u[end] - 0.5*sigma*(u[2] - u[end-1]) + 0.5*sigma*sigma*(u[end-1] - 2*u[end] + u[2]) # u[end+1] = u[2] due to periodic bc
+    @views unew[2:end-1] .= u[2:end-1] - 0.5*sigma*(u[3:end] - u[1:end-2]) + 0.5*sigma*sigma*(u[1:end-2] - 2.0*u[2:end-1] + u[3:end])
 end
 
 # Exact solution calculation
@@ -37,7 +63,7 @@ end
 # Error calculation
 function error_cal(param, exact_sol, u)
     error = 0.0 
-    error = sum(abs, exact_sol[1:param.N_local] - u[1:param.N_local])
+    error = sum(abs, exact_sol[1:param.N_local] - u[2:param.N_local+1])
     error = error/param.N_local/size
     return error
 end
@@ -47,39 +73,51 @@ xmin, xmax = 0.0, 1.0  # [xmin, xmax]
 a = 1   # velocity
 N, t = 100, 1   # N = number of grid points, t = final time
 N_local = div(N, size)    # / -> converts N to float; div() doesn't;   change in error_cal also
+x = nothing
+dx = (xmax - xmin)/(N - 1)
+if rank == 0
+    x = fill(0.0, N)        # grid array
+    for i in 1:N
+        x[i] = xmin + (i-1)*dx
+    end
+end
+
+x_local = fill(0.0, N_local)
+MPI.Scatter!(x, x_local, comm, root=0)
+
 grid_per_rank = (xmax - xmin)/size
-xmin = 0.0 + rank*grid_per_rank
+xmin = rank*grid_per_rank
 xmax = xmin + grid_per_rank
-dx = (xmax - xmin)/(N_local - grid_per_rank)
+# if rank == 1
+#     @show xmin, xmax
+#     exit()
+# end
 
 @show N_local, t, xmin, xmax, a, dx
 param = (; N_local, t, dx, xmin, a)
 
 
 function solver(param)
-    u = fill(0.0, param.N_local)        # Initial solution
-    unew = fill(0.0, param.N_local)     # Updated solution
-    x = fill(0.0, param.N_local)        # grid array
+    u = fill(0.0, param.N_local + 2)        # Initial solution
+    unew = fill(0.0, param.N_local + 2)     # Updated solution
     exact_sol = fill(0.0, param.N_local)   # exact solution array
     
     # 1-D grid generation
-    for i in 1:param.N_local
-        x[i] = param.xmin + (i-1)*param.dx
-    end
-    exact_solution!(param, x, exact_sol)
+    exact_solution!(param, x_local, exact_sol)
+
     # Invoking initial condition
-    initial_u!(param, x, u)
+    initial_u!(param, x_local, u)
 
     j = 0.0
     it = 0.0
     buf = fill(0.0, 2)
 
     if rank == 0
-        println("Enter the cfl: ")
+        print("Enter the cfl: ")
         cfl = readline()                # should be less than 1.0
         cfl = parse(Float64, cfl)       # parse() will convert it to Float64
         dt = cfl * dx / abs(a)          # readline() input it as string
-        sigma = abs(a) * dt / dx        # as a substitute to cfl
+        sigma = abs(a) * dt / dx        # as a substitute to cflu[2]
         buf[1] = dt
         buf[2] = sigma
     end
@@ -95,8 +133,11 @@ function solver(param)
         end
         # ---------------------------------
 
+        get_ghost_values!(param, u)
+        # @show it
+
         update_lw!(u, unew, buf[2])
-        u .= unew           # Use . for element-wise operation on vector
+        @views u[2:end-1] .= unew[2:end-1]           # Use . for element-wise operation on vector
         j += buf[1]
         it += 1
     end
@@ -121,9 +162,14 @@ function solver(param)
     # @show N, t, xmin, xmax, a
     # param = (; N, t, dx, xmin, a)
 
-
-    final_sol = MPI.Gather(u, comm, root=0)
-    x_final = MPI.Gather(x, comm, root=0)
+    # u_final = fill(0.0, param.N_local)
+    u_final = @view u[2:end-1]
+    # if rank == 0
+    #     @show u
+    #     exit()
+    # end
+    final_sol = MPI.Gather(u_final, comm, root=0)
+    x_final = MPI.Gather(x_local, comm, root=0)
     exact_sol_final = MPI.Gather(exact_sol, comm, root=0)
 
 
@@ -137,8 +183,8 @@ function solver(param)
     end
 
     # # Plotting: saved in "linadv_ser.png"
-    # plot(x, exact_sol, label="Exact Solution", linestyle=:solid, linewidth=2,dpi=150)
-    # plot!(x, u, label="Numerical Solution", xlabel="Domain", ylabel="solution values(u)", title="Solution Plot",
+    # plot(x_local, exact_sol, label="Exact Solution", linestyle=:solid, linewidth=2,dpi=150)
+    # plot!(x_local, u, label="Numerical Solution", xlabel="Domain", ylabel="solution values(u)", title="Solution Plot",
     #     linewidth=2, linestyle=:dot, linecolor="black", dpi=150)
     # savefig("../linadv_ser/linadv_ser.png")
 end
