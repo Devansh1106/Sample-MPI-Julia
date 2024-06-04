@@ -58,10 +58,7 @@ function solver(param)
     j = 0.0
     it = 0.0
 
-    println("Enter the cfl: ")
-    cfl = readline()                # should be less than 1.0
-    cfl = parse(Float64, cfl)       # parse() will convert it to Float64
-    dt = cfl * dx / abs(a)          # readline() input it as string
+    dt = param.cfl * dx / abs(a)
     sigma = abs(a) * dt / dx        # as a substitute to cfl
 
 
@@ -106,7 +103,8 @@ end
 xmin, xmax = 0.0, 1.0                   # [xmin, xmax]
 a = 1                                   # velocity
 N, t = 100, 1                           # N = number of grid points, t = final time
+cfl = 0.8
 dx = (xmax - xmin)/(N-1)
-@show N, t, xmin, xmax, a
-param = (; N, t, dx, xmin, a)
+@show N, t, xmin, xmax, a, cfl
+param = (; N, t, dx, xmin, a, cfl)
 solver(param)
