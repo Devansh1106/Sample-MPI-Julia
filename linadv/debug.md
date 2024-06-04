@@ -5,9 +5,10 @@
 
 ## Bugs
 - [x] Error is large (66%) -- *resolved*
-- [ ] When `size=2` error is large (64%)
+- [x] When `size=2` error is large (64%)
 - [x] Due to periodic boundary conditions, `rank 0` and `last rank` need to communicate boundary conditions, which they are not communicating.
 - [x] `update_lw!()` is wrong (only for parallel algorithm) since it will treat `u[25]` (of rank 0) as `u[end]` since for a single rank such as rank 0 `u[25]` is the last element but in general `u[end]` is last element and `u[25]` is in the middle. This is because that's how code is written for serial `update_lw!()`
+- [x] `while` loop condition should be `j < t` not `j <= t` -- caused infinite loop
 
 
 ## Solutions  
