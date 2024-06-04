@@ -5,16 +5,13 @@
 # Computational domain [0,1]
 
 using DelimitedFiles
-# using Plots
-# gr()
+using Plots
 
 # To generate a initial solution through initial condition
 function initial_u!(param, x, u)
     for i in 1:param.N
         u[i] = sin(2.0 * π * x[i])
     end
-    # @show u
-    # exit()
 end
 
 # @views --> avoids unnecessary memory allocations while assignment by creating "view"
@@ -22,9 +19,6 @@ end
 
 # Lex-Wendroff method 
 function update_lw!(u, unew, sigma)
-    # @show u[end-1]
-    # @show u[2]
-    # exit()
     unew[1] = u[1] - 0.5* sigma *(u[2] - u[end-1]) + 0.5*sigma*sigma*(u[end-1] - 2*u[1] + u[2])   # u[0] = u[end-1] due to periodic bc
     @views unew[2:end-1] .= u[2:end-1] - 0.5*sigma*(u[3:end] - u[1:end-2]) + 0.5*sigma*sigma*(u[1:end-2] - 2*u[2:end-1] + u[3:end])
     unew[end] = u[end] - 0.5*sigma*(u[2] - u[end-1]) + 0.5*sigma*sigma*(u[end-1] - 2*u[end] + u[2]) # u[end+1] = u[2] due to periodic bc
@@ -47,10 +41,10 @@ end
 
 
 function solver(param)
-    u = fill(0.0, param.N)        # Initial solution
-    unew = fill(0.0, param.N)     # Updated solution
-    x = fill(0.0, param.N)        # grid array
-    exact_sol = fill(0.0, param.N)   # exact solution array
+    u = fill(0.0, param.N)              # Initial solution
+    unew = fill(0.0, param.N)           # Updated solution
+    x = fill(0.0, param.N)              # grid array
+    exact_sol = fill(0.0, param.N)      # exact solution array
     
     # 1-D grid generation
     for i in 1:param.N
@@ -63,14 +57,11 @@ function solver(param)
     j = 0.0
     it = 0.0
 
-    println("Enter the cfl: ")
-    cfl = readline()                # should be less than 1.0
-    cfl = parse(Float64, cfl)       # parse() will convert it to Float64
-    dt = cfl * dx / abs(a)          # readline() input it as string
+    dt = param.cfl * dx / abs(a)
     sigma = abs(a) * dt / dx        # as a substitute to cfl
 
 
-    while j <= t && it < 500
+    while j < t 
         # -------Crucial block-------------
         if j + dt > t
             dt = t - j                  # example: if j= 0.99 (<param.t) and param.dt = 0.5 hence if now loop runs it will give solution for final time
@@ -80,7 +71,7 @@ function solver(param)
         # ---------------------------------
 
         update_lw!(u, unew, sigma)
-        u .= unew           # Use . for element-wise operation on vector
+        u .= unew                       # Use . for element-wise operation on vector
         j += dt
         it += 1
     end
@@ -93,25 +84,34 @@ function solver(param)
     println("---------------------------")
 
     # Writing solution to Files
-    open("/home/devansh/Sample-MPI-Julia/linadv_ser/num_sol.txt","w") do io
+    open("../linadv/num_sol.txt","w") do io
         writedlm(io, [x u], "\t\t")
     end
-    open("/home/devansh/Sample-MPI-Julia/linadv_ser/exact_sol.txt","w") do io
+    open("../linadv/exact_sol.txt","w") do io
         writedlm(io, [x exact_sol], "\t\t")
     end
 
-    # # Plotting: saved in "linadv_ser.png"
-    # plot(x, exact_sol, label="Exact Solution", linestyle=:solid, linewidth=2,dpi=150)
-    # plot!(x, u, label="Numerical Solution", xlabel="Domain", ylabel="solution values(u)", title="Solution Plot",
-    #     linewidth=2, linestyle=:dot, linecolor="black", dpi=150)
-    # savefig("../linadv_ser/linadv_ser.png")
+    # Plotting: saved as "linadv1D_ser.png"
+    plot(x, exact_sol,
+        label="Exact Solution",
+        linestyle=:solid, linewidth=2,
+        dpi=150)
+
+    plot!(x, u,
+        label="Numerical Solution",
+        xlabel="Domain", ylabel="solution values(u)",
+        title="Solution Plot",
+        linewidth=2, linestyle=:dot, linecolor="black",
+        dpi=150)
+    savefig("../linadv/linadv1D_ser.png")
 end
 
 # for inputting parameters of the simulation
-xmin, xmax = 0.0, 1.0  # [xmin, xmax]
-a = 1   # velocity
-N, t = 100, 1   # N = number of grid points, t = final time
+xmin, xmax = 0.0, 1.0                   # [xmin, xmax]
+a = 1                                   # velocity
+N, t = 100, 1                           # N = number of grid points, t = final time
+cfl = 0.8
 dx = (xmax - xmin)/(N-1)
-@show N, t, xmin, xmax, a
-param = (; N, t, dx, xmin, a)
+@show N, t, xmin, xmax, a, cfl
+param = (; N, t, dx, xmin, a, cfl)
 solver(param)
