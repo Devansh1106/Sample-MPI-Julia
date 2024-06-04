@@ -78,6 +78,7 @@ end
 xmin, xmax = 0.0, 1.0           # [xmin, xmax]
 a = 1                           # velocity
 N, t = 100, 1                   # N = number of grid points, t = final time
+cfl = 0.8
 N_local = div(N, size)          # / -> converts N to float; div() doesn't;   change in error_cal also
 x = nothing
 dx = (xmax - xmin)/(N - 1)
@@ -95,8 +96,8 @@ grid_per_rank = (xmax - xmin)/size
 xmin = rank*grid_per_rank
 xmax = xmin + grid_per_rank
 
-@show N_local, t, xmin, xmax, a, dx
-param = (; N_local, t, dx, xmin, a)
+@show N_local, t, xmin, xmax, a, cfl, dx
+param = (; N_local, t, dx, xmin, a, cfl)
 
 
 function solver(param)
@@ -112,34 +113,24 @@ function solver(param)
 
     j = 0.0
     it = 0.0
-    buf = fill(0.0, 2)
 
-    if rank == 0
-        print("Enter the cfl: ")
-        cfl = readline()                # should be less than 1.0
-        cfl = parse(Float64, cfl)       # parse() will convert it to Float64
-        dt = cfl * dx / abs(a)          # readline() input it as string
-        sigma = abs(a) * dt / dx        # as a substitute to cflu[2]
-        buf[1] = dt
-        buf[2] = sigma
-    end
-    buf = MPI.bcast(buf, 0, comm)
-
+    dt = param.cfl * dx / abs(a)
+    sigma = abs(a) * dt / dx        # as a substitute to cfl
 
     while j < t
         # -------Crucial block-------------
-        if j + buf[1] > t
-            buf[1] = t - j                  # if `j + dt` goes beyond `t` then loop will quit in next iteration hence solution will not get calculated till `t`
+        if j + dt > t
+            dt = t - j                  # if `j + dt` goes beyond `t` then loop will quit in next iteration hence solution will not get calculated till `t`
                                             # With this, solution will get calculated as close to `t`
-            buf[2] = buf[1] * abs(a) / dx
+            sigma = dt * abs(a) / dx
         end
         # ---------------------------------
 
         get_ghost_values!(param, u)
 
-        update_lw!(u, unew, buf[2])
+        update_lw!(u, unew, sigma)
         @views u[2:end-1] .= unew[2:end-1]      # Use . for element-wise operation on vector
-        j += buf[1]
+        j += dt
         it += 1
     end
     local_err = error_cal(param, exact_sol, u)
