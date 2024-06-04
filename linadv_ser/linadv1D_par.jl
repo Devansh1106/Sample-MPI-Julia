@@ -3,6 +3,7 @@
 # initial conditions: 
 # u(x) = sin(2πx)
 # Computational domain [0,1]
+# Exact solution: u(x-at) = sin(2π(x-at))
 
 using DelimitedFiles
 using MPI
@@ -128,8 +129,8 @@ function solver(param)
     while j < t
         # -------Crucial block-------------
         if j + buf[1] > t
-            buf[1] = t - j                  # example: if j= 0.99 (<param.t) and param.dt = 0.5 hence if now loop runs it will give solution for final time
-                                            # param.t = 0.99+0.5 which voilates the condition. Hence need to check this. Not very clear to me!!!
+            buf[1] = t - j                  # if `j + dt` goes beyond `t` then loop will quit in next iteration hence solution will not get calculated till `t`
+                                            # With this, solution will get calculated as close to `t`
             buf[2] = buf[1] * abs(a) / dx
         end
         # ---------------------------------
