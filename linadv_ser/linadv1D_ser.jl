@@ -13,6 +13,8 @@ function initial_u!(param, x, u)
     for i in 1:param.N
         u[i] = sin(2.0 * π * x[i])
     end
+    # @show u
+    # exit()
 end
 
 # @views --> avoids unnecessary memory allocations while assignment by creating "view"
@@ -20,6 +22,9 @@ end
 
 # Lex-Wendroff method 
 function update_lw!(u, unew, sigma)
+    # @show u[end-1]
+    # @show u[2]
+    # exit()
     unew[1] = u[1] - 0.5* sigma *(u[2] - u[end-1]) + 0.5*sigma*sigma*(u[end-1] - 2*u[1] + u[2])   # u[0] = u[end-1] due to periodic bc
     @views unew[2:end-1] .= u[2:end-1] - 0.5*sigma*(u[3:end] - u[1:end-2]) + 0.5*sigma*sigma*(u[1:end-2] - 2*u[2:end-1] + u[3:end])
     unew[end] = u[end] - 0.5*sigma*(u[2] - u[end-1]) + 0.5*sigma*sigma*(u[end-1] - 2*u[end] + u[2]) # u[end+1] = u[2] due to periodic bc
