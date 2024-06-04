@@ -6,12 +6,51 @@
 # Exact solution: u(x-at) = sin(2π(x-at))
 
 using DelimitedFiles
+using Plots
 using MPI
 MPI.Init()
 
 comm = MPI.COMM_WORLD
 rank = MPI.Comm_rank(comm)
 size = MPI.Comm_size(comm)
+
+# for inputting parameters of the simulation
+if rank == 0
+    if length(ARGS) != 4
+        println("ArgumentError: Usage: julia linadv1D_par.jl <N> <t> <cfl> <a>")
+        exit()
+    end
+else
+    if length(ARGS) != 4
+        exit()
+    end
+end
+
+N = parse(Int, ARGS[1])         # N = number of grid points
+t = parse(Int, ARGS[2])         # t = final time
+cfl = parse(Float64, ARGS[3])
+a = parse(Int, ARGS[4])         # velocity
+
+xmin, xmax = 0.0, 1.0           # [xmin, xmax]
+N_local = div(N, size)          # / -> converts N to float; div() doesn't;   change in error_cal also
+x = nothing
+dx = (xmax - xmin)/(N - 1)
+if rank == 0
+    x = fill(0.0, N)            # grid array
+    for i in 1:N
+        x[i] = xmin + (i-1)*dx
+    end
+end
+
+x_local = fill(0.0, N_local)
+MPI.Scatter!(x, x_local, comm, root=0)
+
+grid_per_rank = (xmax - xmin)/size
+xmin = rank*grid_per_rank
+xmax = xmin + grid_per_rank
+
+@show N_local, t, xmin, xmax, a, cfl, dx
+param = (; N_local, t, dx, xmin, a, cfl)
 
 
 # To generate a initial solution through initial condition
@@ -74,32 +113,6 @@ function error_cal(param, exact_sol, u)
     return error
 end
 
-# for inputting parameters of the simulation
-xmin, xmax = 0.0, 1.0           # [xmin, xmax]
-a = 1                           # velocity
-N, t = 100, 1                   # N = number of grid points, t = final time
-cfl = 0.8
-N_local = div(N, size)          # / -> converts N to float; div() doesn't;   change in error_cal also
-x = nothing
-dx = (xmax - xmin)/(N - 1)
-if rank == 0
-    x = fill(0.0, N)            # grid array
-    for i in 1:N
-        x[i] = xmin + (i-1)*dx
-    end
-end
-
-x_local = fill(0.0, N_local)
-MPI.Scatter!(x, x_local, comm, root=0)
-
-grid_per_rank = (xmax - xmin)/size
-xmin = rank*grid_per_rank
-xmax = xmin + grid_per_rank
-
-@show N_local, t, xmin, xmax, a, cfl, dx
-param = (; N_local, t, dx, xmin, a, cfl)
-
-
 function solver(param)
     u = fill(0.0, param.N_local + 2)            # Initial solution
     unew = fill(0.0, param.N_local + 2)         # Updated solution
@@ -156,20 +169,29 @@ function solver(param)
     exact_sol_final = MPI.Gather(exact_sol, comm, root=0)
 
 
-    
-    # Writing solution to Files
-    open("/home/devansh/Sample-MPI-Julia/linadv_ser/num_sol_par.txt","w") do io
-        writedlm(io, [x_final final_sol], "\t\t")
-    end
-    open("/home/devansh/Sample-MPI-Julia/linadv_ser/exact_sol_par.txt","w") do io
-        writedlm(io, [x_final exact_sol_final], "\t\t")
-    end
+    if rank == 0
+        # Writing solution to Files
+        open("../linadv/num_sol_par.txt","w") do io
+            writedlm(io, [x_final final_sol], "\t\t")
+        end
+        open("../linadv/exact_sol_par.txt","w") do io
+            writedlm(io, [x_final exact_sol_final], "\t\t")
+        end
 
-    # # Plotting: saved in "linadv_ser.png"
-    # plot(x_local, exact_sol, label="Exact Solution", linestyle=:solid, linewidth=2,dpi=150)
-    # plot!(x_local, u, label="Numerical Solution", xlabel="Domain", ylabel="solution values(u)", title="Solution Plot",
-    #     linewidth=2, linestyle=:dot, linecolor="black", dpi=150)
-    # savefig("../linadv_ser/linadv_ser.png")
+        # Plotting: saved as "linadv1D_par.png"
+        plot(x_final, exact_sol_final,
+            label="Exact Solution",
+            linestyle=:solid, linewidth=2,
+            dpi=150)
+
+        plot!(x_final, final_sol,
+            label="Numerical Solution",
+            xlabel="Domain", ylabel="solution values(u)",
+            title="Solution Plot",
+            linewidth=2, linestyle=:dot, linecolor="black",
+            dpi=150)
+        savefig("../linadv/linadv1D_par.png")
+    end
 end
 
 solver(param)
