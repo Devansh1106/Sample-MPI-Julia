@@ -29,22 +29,29 @@ function get_ghost_values!(param, u)
     end
     next = (rank + 1) % size
     prev = (rank + size - 1) % size
+    
+    # Things matters while communicating:
+    # 1- Order of sending messages
+    # 2- tag matching
+    
     if rank == 0
-        MPI.send(u[N_local+1], comm, dest=next, tag=next)
-        MPI.send(u[3], comm, dest=prev, tag=prev)
-        u[N_local + 2] = MPI.recv(comm; source=next, tag=rank)
-        u[1] = MPI.recv(comm; source=prev, tag=rank)
+        MPI.send(u[N_local+1], comm, dest=next, tag=0)
+        MPI.send(u[3], comm, dest=prev, tag=0)
+        u[N_local + 2] = MPI.recv(comm; source=next, tag=0)
+        u[1] = MPI.recv(comm; source=prev, tag=0)
     elseif rank == size - 1
-        MPI.send(u[N_local], comm, dest=next, tag=next)
-        MPI.send(u[2], comm, dest=prev, tag=prev)
-        u[N_local + 2] = MPI.recv(comm; source=next, tag=rank)
-        u[1] = MPI.recv(comm; source=prev, tag=rank)
+        MPI.send(u[2], comm, dest=prev, tag=0)
+        MPI.send(u[N_local], comm, dest=next, tag=0)
+        u[1] = MPI.recv(comm; source=prev, tag=0)
+        u[N_local + 2] = MPI.recv(comm; source=next, tag=0)
     else
-        MPI.send(u[N_local + 1], comm, dest=next, tag=next)
-        MPI.send(u[2], comm, dest=prev, tag=prev)
-        u[N_local + 2] = MPI.recv(comm; source=next, tag=rank)
-        u[1] = MPI.recv(comm; source=prev, tag=rank)
+        MPI.send(u[N_local + 1], comm, dest=next, tag=0)
+        MPI.send(u[2], comm, dest=prev, tag=0)
+        u[N_local + 2] = MPI.recv(comm; source=next, tag=0)
+        u[1] = MPI.recv(comm; source=prev, tag=0)
     end
+    # @show (rank, u)
+    # exit()
 end
 
 
@@ -69,17 +76,19 @@ function error_cal(param, exact_sol, u)
 end
 
 # for inputting parameters of the simulation
-xmin, xmax = 0.0, 1.0  # [xmin, xmax]
-a = 1   # velocity
-N, t = 100, 1   # N = number of grid points, t = final time
-N_local = div(N, size)    # / -> converts N to float; div() doesn't;   change in error_cal also
+xmin, xmax = 0.0, 1.0           # [xmin, xmax]
+a = 1                           # velocity
+N, t = 100, 1                   # N = number of grid points, t = final time
+N_local = div(N, size)          # / -> converts N to float; div() doesn't;   change in error_cal also
 x = nothing
 dx = (xmax - xmin)/(N - 1)
 if rank == 0
-    x = fill(0.0, N)        # grid array
+    x = fill(0.0, N)            # grid array
     for i in 1:N
         x[i] = xmin + (i-1)*dx
     end
+    # @show x
+    # exit()
 end
 
 x_local = fill(0.0, N_local)
@@ -98,9 +107,9 @@ param = (; N_local, t, dx, xmin, a)
 
 
 function solver(param)
-    u = fill(0.0, param.N_local + 2)        # Initial solution
-    unew = fill(0.0, param.N_local + 2)     # Updated solution
-    exact_sol = fill(0.0, param.N_local)   # exact solution array
+    u = fill(0.0, param.N_local + 2)            # Initial solution
+    unew = fill(0.0, param.N_local + 2)         # Updated solution
+    exact_sol = fill(0.0, param.N_local)        # exact solution array
     
     # 1-D grid generation
     exact_solution!(param, x_local, exact_sol)
@@ -135,9 +144,13 @@ function solver(param)
 
         get_ghost_values!(param, u)
         # @show it
+        # if it == 0
+        #     @show (rank, u)
+        #     exit()
+        # end
 
         update_lw!(u, unew, buf[2])
-        @views u[2:end-1] .= unew[2:end-1]           # Use . for element-wise operation on vector
+        @views u[2:end-1] .= unew[2:end-1]      # Use . for element-wise operation on vector
         j += buf[1]
         it += 1
     end
