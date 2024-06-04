@@ -50,8 +50,6 @@ function get_ghost_values!(param, u)
         u[N_local + 2] = MPI.recv(comm; source=next, tag=0)
         u[1] = MPI.recv(comm; source=prev, tag=0)
     end
-    # @show (rank, u)
-    # exit()
 end
 
 
@@ -87,8 +85,6 @@ if rank == 0
     for i in 1:N
         x[i] = xmin + (i-1)*dx
     end
-    # @show x
-    # exit()
 end
 
 x_local = fill(0.0, N_local)
@@ -97,10 +93,6 @@ MPI.Scatter!(x, x_local, comm, root=0)
 grid_per_rank = (xmax - xmin)/size
 xmin = rank*grid_per_rank
 xmax = xmin + grid_per_rank
-# if rank == 1
-#     @show xmin, xmax
-#     exit()
-# end
 
 @show N_local, t, xmin, xmax, a, dx
 param = (; N_local, t, dx, xmin, a)
@@ -133,7 +125,7 @@ function solver(param)
     buf = MPI.bcast(buf, 0, comm)
 
 
-    while j <= t && it < 500
+    while j < t
         # -------Crucial block-------------
         if j + buf[1] > t
             buf[1] = t - j                  # example: if j= 0.99 (<param.t) and param.dt = 0.5 hence if now loop runs it will give solution for final time
@@ -143,11 +135,6 @@ function solver(param)
         # ---------------------------------
 
         get_ghost_values!(param, u)
-        # @show it
-        # if it == 0
-        #     @show (rank, u)
-        #     exit()
-        # end
 
         update_lw!(u, unew, buf[2])
         @views u[2:end-1] .= unew[2:end-1]      # Use . for element-wise operation on vector
@@ -167,22 +154,13 @@ function solver(param)
         println("Iterations: ", it)
         println("---------------------------")
     end
-    # # for inputting parameters of the simulation
-    # xmin, xmax = 0.0, 1.0  # [xmin, xmax]
-    # a = 1   # velocity
-    # N, t = 100, 1   # N = number of grid points, t = final time
-    # dx = (xmax - xmin)/(N-1)
-    # @show N, t, xmin, xmax, a
-    # param = (; N, t, dx, xmin, a)
 
-    # u_final = fill(0.0, param.N_local)
     u_final = @view u[2:end-1]
-    # if rank == 0
-    #     @show u
-    #     exit()
-    # end
+
     final_sol = MPI.Gather(u_final, comm, root=0)
+
     x_final = MPI.Gather(x_local, comm, root=0)
+
     exact_sol_final = MPI.Gather(exact_sol, comm, root=0)
 
 
@@ -202,12 +180,4 @@ function solver(param)
     # savefig("../linadv_ser/linadv_ser.png")
 end
 
-# # for inputting parameters of the simulation
-# xmin, xmax = 0.0, 1.0  # [xmin, xmax]
-# a = 1   # velocity
-# N, t = 100, 1   # N = number of grid points, t = final time
-# dx = (xmax - xmin)/(N-1)
-# @show N, t, xmin, xmax, a
-# param = (; N, t, dx, xmin, a)
 solver(param)
-# solver(param)
