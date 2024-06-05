@@ -27,7 +27,7 @@ else
 end
 
 N = parse(Int, ARGS[1])         # N = number of grid points
-@assert N % size == 0
+@assert N > size
 t = parse(Int, ARGS[2])         # t = final time
 cfl = parse(Float64, ARGS[3])
 a = parse(Int, ARGS[4])         # velocity
@@ -35,7 +35,13 @@ a = parse(Int, ARGS[4])         # velocity
 xmin, xmax = 0.0, 1.0           # [xmin, xmax]
 N_local = div(N, size)          # / -> converts N to float; div() doesn't
 dx = (xmax - xmin)/(N - 1)
+
+# if N % size !== 0 then last rank will have different number of cells
+# otherwise, same.
 xmin_local = dx * rank * N_local
+if rank == size - 1
+    N_local = N - rank*N_local
+end
 xmax_local = xmin_local + dx * N_local
 
 x_local = fill(0.0, N_local)
@@ -144,9 +150,6 @@ function solver(param)
     global_err = MPI.Reduce(local_err, +, comm, root=0)
 
     if rank == 0
-        final_sol = fill(0.0, size * N_local)
-        x_final = fill(0.0, size * N_local)
-        exact_sol_final = fill(0.0, size * N_local)
         # Output to terminal    
         println("---------------------------")
         println("Error is: ", global_err)
@@ -154,37 +157,36 @@ function solver(param)
         println("---------------------------")
     end
 
-    u_final = @view u[2:end-1]
+    # Writing solution to Files
+    open("../linadv/num_sol_par_$rank.txt", "w") do io
+        writedlm(io, [x_local u[2:end-1]], "\t\t")
+    end
 
-    final_sol = MPI.Gather(u_final, comm, root=0)
-
-    x_final = MPI.Gather(x_local, comm, root=0)
-
-    exact_sol_final = MPI.Gather(exact_sol, comm, root=0)
-
+    open("../linadv/exact_sol_par_$rank.txt", "w") do io
+        writedlm(io, [x_local exact_sol], "\t\t")
+    end
 
     if rank == 0
-        # Writing solution to Files
-        open("../linadv/num_sol_par.txt","w") do io
-            writedlm(io, [x_final final_sol], "\t\t")
-        end
-        open("../linadv/exact_sol_par.txt","w") do io
-            writedlm(io, [x_final exact_sol_final], "\t\t")
-        end
-
         # Plotting: saved as "linadv1D_par.png"
-        plot(x_final, exact_sol_final,
-            label="Exact Solution",
-            linestyle=:solid, linewidth=2,
-            dpi=150)
+        run(`sh -c "cat ../linadv/num_sol_par_*.txt > numerical_parallel.txt"`)
+        run(`sh -c "cat ../linadv/exact_sol_par_*.txt > exact_parallel.txt"`)
 
-        plot!(x_final, final_sol,
-            label="Numerical Solution",
-            xlabel="Domain", ylabel="solution values(u)",
-            title="Solution Plot",
-            linewidth=2, linestyle=:dot, linecolor="black",
-            dpi=150)
+        num_data = readdlm("../linadv/numerical_parallel.txt", Float64)
+        exact_data = readdlm("../linadv/exact_parallel.txt", Float64)
+
+        plot(num_data[:,1],num_data[:,2], 
+             label="Exact Solution",
+             linestyle=:solid, linewidth=2,
+             dpi=150)
+
+        plot!(exact_data[:,1],exact_data[:,2], 
+              label="Numerical Solution", xlabel="Domain", ylabel="solution values(u)",
+              title="Solution Plot",
+              linewidth=2, linestyle=:dot, linecolor="black", 
+              dpi=150)
+
         savefig("../linadv/linadv1D_par.png")
+        println("DONE")
     end
 end
 
