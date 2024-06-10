@@ -13,6 +13,7 @@ MPI.Init()
 comm = MPI.COMM_WORLD
 rank = MPI.Comm_rank(comm)
 size = MPI.Comm_size(comm)
+rank == 0 ? time_start = MPI.Wtime() : nothing
 
 
 # for inputting parameters of the simulation
@@ -153,18 +154,22 @@ function solver(param)
         j += dt
         it += 1
     end
-    collective_win_free(win)
     local_err = error_cal(param, exact_sol, u)
-    global_err = MPI.Reduce(local_err, +, comm, root=0)
+    MPI.Accumulate!(local_err, MPI.SUM, win; rank=0, disp=0)
+    # global_err = MPI.Reduce(local_err, +, comm, root=0)
+    collective_win_free(win)
     
     if rank == 0
         # Output to terminal    
         println("---------------------------")
-        println("Error is: ", global_err)
+        println("Error is: ", local_err)
         println("Iterations: ", it)
         println("---------------------------")
     end
         
+    rank == 0 ? time_end = MPI.Wtime() : nothing
+    rank == 0 ? println("Time taken: $(time_end - time_start)") : nothing
+
     # Writing solution to Files
     open("../linadv/linadv_rma/num_sol_par_$rank.txt", "w") do io
         writedlm(io, [x_local u[2:end-1]], "\t\t")

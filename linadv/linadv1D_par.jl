@@ -13,6 +13,7 @@ MPI.Init()
 comm = MPI.COMM_WORLD
 rank = MPI.Comm_rank(comm)
 size = MPI.Comm_size(comm)
+rank == 0 ? time_start = MPI.Wtime() : nothing
 
 # for inputting parameters of the simulation
 if rank == 0
@@ -157,6 +158,9 @@ function solver(param)
         println("---------------------------")
     end
 
+    rank == 0 ? time_end = MPI.Wtime() : nothing
+    rank == 0 ? println("Time taken: $(time_end - time_start)") : nothing
+
     # Writing solution to Files
     open("../linadv/num_sol_par_$rank.txt", "w") do io
         writedlm(io, [x_local u[2:end-1]], "\t\t")
@@ -170,6 +174,9 @@ function solver(param)
         # Plotting: saved as "linadv1D_par.png"
         run(`sh -c "cat ../linadv/num_sol_par_*.txt > numerical_parallel.txt"`)
         run(`sh -c "cat ../linadv/exact_sol_par_*.txt > exact_parallel.txt"`)
+
+        run(`sh -c "rm ../linadv/num_sol_par_*.txt"`)
+        run(`sh -c "rm ../linadv/exact_sol_par_*.txt"`)
 
         num_data = readdlm("../linadv/numerical_parallel.txt", Float64)
         exact_data = readdlm("../linadv/exact_parallel.txt", Float64)

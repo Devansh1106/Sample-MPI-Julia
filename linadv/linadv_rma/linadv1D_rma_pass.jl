@@ -10,11 +10,10 @@ using Plots
 using MPI
 MPI.Init()
 
-time_start = MPI.Wtime()
-
 comm = MPI.COMM_WORLD
 rank = MPI.Comm_rank(comm)
 size = MPI.Comm_size(comm)
+rank == 0 ? time_start = MPI.Wtime() : nothing
 
 
 # for inputting parameters of the simulation
@@ -166,6 +165,8 @@ function solver(param)
         println("Iterations: ", it)
         println("---------------------------")
     end
+    rank == 0 ? time_end = MPI.Wtime() : nothing
+    rank == 0 ? println("Time taken: $(time_end - time_start)") : nothing
         
     # Writing solution to Files
     open("../linadv/linadv_rma/num_sol_par_$rank.txt", "w") do io
@@ -175,9 +176,6 @@ function solver(param)
     open("../linadv/linadv_rma/exact_sol_par_$rank.txt", "w") do io
         writedlm(io, [x_local exact_sol], "\t\t")
     end
-
-    time_end = MPI.Wtime()
-    @show time_end - time_start
 
     if rank == 0
         # Plotting: saved as "linadv1D_par.png"
