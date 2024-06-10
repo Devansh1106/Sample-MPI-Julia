@@ -84,10 +84,10 @@ function solver(param)
     println("---------------------------")
 
     # Writing solution to Files
-    open("../linadv/numerical_serial.txt","w") do io
+    open("../linadv/num_sol.txt","w") do io
         writedlm(io, [x u], "\t\t")
     end
-    open("../linadv/exact_serial.txt","w") do io
+    open("../linadv/exact_sol.txt","w") do io
         writedlm(io, [x exact_sol], "\t\t")
     end
 

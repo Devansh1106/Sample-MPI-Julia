@@ -71,31 +71,28 @@ function get_ghost_values!(param, u, win)
         return
     end
     next = (rank + 1) % size
-    if rank !== size - 1  
-        buf1 = fill(0.0, 1)
-        MPI.Win_lock(win; rank=next, type=MPI.LOCK_SHARED, nocheck=true)    # window; target_rank, lock_type, nocheck::bool
-        MPI.Put!(u[param.N_local+1], win; rank=next, disp=0)                # origin_buf, window; target_rank, disp
-        # MPI.Win_flush(next, win)          # ensure completion at target process; not needed here since there are no subsequent RMA ops here
-        MPI.Get!(buf1, win; rank=next, disp=1)
-        MPI.Win_unlock(win, rank=next)
-        u[N_local+2] = buf1[1]
+    # prev = (rank + size - 1) % size
+    
+    # Things matters while communicating:
+    # 1- Order of sending messages
+    # 2- tag matching
+    
+    if rank !== size - 1
+        MPI.Win_lock(MPI.LOCK_SHARED, next, win, 1) # lock_type, target_rank, window, nocheck::bool
+        MPI.Put!(u[N_local+1], win, next, 0)        # origin_buf, window, target_rank, displs
+        MPI.Get!(u[N_local+2], next, 1, win)        # origin_buf, target_rank, displs, window
     else
-        buf2 = fill(0.0, 1)
-        MPI.Win_lock(win; rank=next, type=MPI.LOCK_SHARED, nocheck=true)    # window; target_rank, lock_type, nocheck::bool
-        MPI.Put!(u[param.N_local], win; rank=next, disp=0)                  # origin_buf, window; target_rank, disp
-        # MPI.Win_flush(next, win)          # ensure completion at target process; not needed here since there are no subsequent RMA ops here
-        MPI.Get!(buf2, win; rank=next, disp=2)
-        MPI.Win_unlock(win; rank=next)
-        u[N_local+2] = buf2[1]
+        MPI.Win_lock(MPI.LOCK_SHARED, next, win, 1) # lock_type, target_rank, window, nocheck::bool
+        MPI.Put!(u[N_local], win, next, 0)          # origin_buf, window, target_rank, displs
+        MPI.Get!(u[N_local+2], next, 2, win)        # origin_buf, target_rank, displs, window
     end
-    MPI.Win_fence(win)
 end
 
 function collective_win_create(u)
     win = MPI.Win_create(u, comm)
     return win
 end
-    
+
 function collective_win_free(win)
     MPI.free(win)
 end
@@ -136,17 +133,17 @@ function solver(param)
     it = 0.0
 
     dt = param.cfl * param.dx / abs(param.a)
-    sigma = abs(a) * dt / param.dx              # as a substitute to cfl
+    sigma = abs(a) * dt / param.dx        # as a substitute to cfl
 
-    win = collective_win_create(u)
     while j < t
         # -------Crucial block-------------
         if j + dt > t
-            dt = t - j                          # if `j + dt` goes beyond `t` then loop will quit in next iteration hence solution will not get calculated till `t`
-                                                # With this, solution will get calculated as close to `t`
+            dt = t - j                      # if `j + dt` goes beyond `t` then loop will quit in next iteration hence solution will not get calculated till `t`
+                                            # With this, solution will get calculated as close to `t`
             sigma = dt * abs(param.a) / param.dx
         end
         # ---------------------------------
+        win = collective_win_create(u)
         get_ghost_values!(param, u, win)
 
         update_lw!(u, unew, sigma)
@@ -166,13 +163,13 @@ function solver(param)
         println("Iterations: ", it)
         println("---------------------------")
     end
-        
+
     # Writing solution to Files
-    open("../linadv/linadv_rma/num_sol_par_$rank.txt", "w") do io
+    open("../linadv/num_sol_par_$rank.txt", "w") do io
         writedlm(io, [x_local u[2:end-1]], "\t\t")
     end
 
-    open("../linadv/linadv_rma/exact_sol_par_$rank.txt", "w") do io
+    open("../linadv/exact_sol_par_$rank.txt", "w") do io
         writedlm(io, [x_local exact_sol], "\t\t")
     end
 
@@ -181,14 +178,11 @@ function solver(param)
 
     if rank == 0
         # Plotting: saved as "linadv1D_par.png"
-        run(`sh -c "cat ../linadv/linadv_rma/num_sol_par_*.txt > ../linadv/linadv_rma/numerical_parallel.txt"`)
-        run(`sh -c "cat ../linadv/linadv_rma/exact_sol_par_*.txt > ../linadv/linadv_rma/exact_parallel.txt"`)
+        run(`sh -c "cat ../linadv/num_sol_par_*.txt > numerical_parallel.txt"`)
+        run(`sh -c "cat ../linadv/exact_sol_par_*.txt > exact_parallel.txt"`)
 
-        run(`sh -c "rm ../linadv/linadv_rma/num_sol_par_*.txt"`)
-        run(`sh -c "rm ../linadv/linadv_rma/exact_sol_par_*.txt"`)
-
-        num_data = readdlm("../linadv/linadv_rma/numerical_parallel.txt", Float64)
-        exact_data = readdlm("../linadv/linadv_rma/exact_parallel.txt", Float64)
+        num_data = readdlm("../linadv/numerical_parallel.txt", Float64)
+        exact_data = readdlm("../linadv/exact_parallel.txt", Float64)
 
         plot(num_data[:,1],num_data[:,2], 
              label="Exact Solution",
@@ -201,7 +195,7 @@ function solver(param)
               linewidth=2, linestyle=:dot, linecolor="black", 
               dpi=150)
 
-        savefig("../linadv/linadv_rma/linadv1D_rma.png")
+        savefig("../linadv/linadv1D_par.png")
         println("DONE")
     end
 end

@@ -171,10 +171,6 @@ function solver(param)
         run(`sh -c "cat ../linadv/num_sol_par_*.txt > numerical_parallel.txt"`)
         run(`sh -c "cat ../linadv/exact_sol_par_*.txt > exact_parallel.txt"`)
 
-        # Remove unnecessary partial solution files
-        run(`sh -c "rm ../linadv/num_sol_par_*.txt"`)
-        run(`sh -c "rm ../linadv/exact_sol_par_*.txt"`)
-
         num_data = readdlm("../linadv/numerical_parallel.txt", Float64)
         exact_data = readdlm("../linadv/exact_parallel.txt", Float64)
 
