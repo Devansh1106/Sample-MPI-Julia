@@ -10,6 +10,8 @@ using Plots
 using MPI
 MPI.Init()
 
+time_start = MPI.Wtime()
+
 comm = MPI.COMM_WORLD
 rank = MPI.Comm_rank(comm)
 size = MPI.Comm_size(comm)
@@ -153,15 +155,14 @@ function solver(param)
         it += 1
     end
     # MPI.Win_fence(win)
-    collective_win_free(win)
-
     local_err = error_cal(param, exact_sol, u)
-    global_err = MPI.Reduce(local_err, +, comm, root=0)
+    MPI.Accumulate!(local_err, MPI.SUM, win; rank=0, disp=0)
+    collective_win_free(win)
     
     if rank == 0
         # Output to terminal    
         println("---------------------------")
-        println("Error is: ", global_err)
+        println("Error is: ", local_err)
         println("Iterations: ", it)
         println("---------------------------")
     end
@@ -174,6 +175,9 @@ function solver(param)
     open("../linadv/linadv_rma/exact_sol_par_$rank.txt", "w") do io
         writedlm(io, [x_local exact_sol], "\t\t")
     end
+
+    time_end = MPI.Wtime()
+    @show time_end - time_start
 
     if rank == 0
         # Plotting: saved as "linadv1D_par.png"
