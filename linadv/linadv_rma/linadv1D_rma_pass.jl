@@ -30,7 +30,7 @@ end
 
 N = parse(Int, ARGS[1])         # N = number of grid points
 @assert N > size
-t = parse(Int, ARGS[2])         # t = final time
+Tf = parse(Int, ARGS[2])         # t = final time
 cfl = parse(Float64, ARGS[3])
 a = parse(Int, ARGS[4])         # velocity
 
@@ -51,8 +51,8 @@ for i in 1:N_local
     x_local[i] = xmin_local + (i-1)*dx
 end
 
-@show N_local, t, xmin_local, xmax_local, a, cfl, dx
-param = (; N_local, t, dx, a, cfl)
+@show N_local, Tf, xmin_local, xmax_local, a, cfl, dx
+param = (; N_local, Tf, dx, a, cfl)
 
 
 # To generate a initial solution through initial condition
@@ -108,7 +108,7 @@ end
 # Exact solution calculation
 function exact_solution!(param, x, exact_sol)
     for i in 1:param.N_local
-        exact_sol[i] = sin(2.0 * π * (x[i]-(param.a * param.t)))
+        exact_sol[i] = sin(2.0 * π * (x[i]-(param.a * param.Tf)))
     end
 end
 
@@ -131,17 +131,17 @@ function solver(param)
     # Invoking initial condition
     initial_u!(param, x_local, u)
 
-    j = 0.0
+    t = 0.0
     it = 0.0
 
     dt = param.cfl * param.dx / abs(param.a)
     sigma = abs(a) * dt / param.dx              # as a substitute to cfl
 
     win = collective_win_create(u)
-    while j < t
+    while t < Tf
         # -------Crucial block-------------
-        if j + dt > t
-            dt = t - j                          # if `j + dt` goes beyond `t` then loop will quit in next iteration hence solution will not get calculated till `t`
+        if t + dt > Tf
+            dt = Tf - t                          # if `j + dt` goes beyond `t` then loop will quit in next iteration hence solution will not get calculated till `t`
                                                 # With this, solution will get calculated as close to `t`
             sigma = dt * abs(param.a) / param.dx
         end
@@ -150,7 +150,7 @@ function solver(param)
 
         update_lw!(u, unew, sigma)
         @views u[2:end-1] .= unew[2:end-1]      # Use . for element-wise operation on vector
-        j += dt
+        t += dt
         it += 1
     end
     # MPI.Win_fence(win)
