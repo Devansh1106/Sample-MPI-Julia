@@ -24,7 +24,11 @@ docs/site/
 Manifest.toml
 Project.toml
 LocalPreferences.toml
-linadv/plot.jl
+linadv/debug.md
+linadv/exact_parallel.txt
+linadv/exact_sol.txt
+linadv/num_sol.txt
+linadv/numerical_parallel.txt
 linadv/linadv_rma/numerical_parallel.txt
 linadv/linadv_rma/exact_parallel.txt
 linadv/linadv_rma/test_rma.jl
