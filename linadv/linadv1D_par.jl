@@ -29,7 +29,7 @@ end
 
 N = parse(Int, ARGS[1])         # N = number of grid points
 @assert N > size
-t = parse(Int, ARGS[2])         # t = final time
+Tf = parse(Int, ARGS[2])         # t = final time
 cfl = parse(Float64, ARGS[3])
 a = parse(Int, ARGS[4])         # velocity
 
@@ -50,8 +50,8 @@ for i in 1:N_local
     x_local[i] = xmin_local + (i-1)*dx
 end
 
-@show N_local, t, xmin_local, xmax_local, a, cfl, dx
-param = (; N_local, t, dx, a, cfl)
+@show N_local, Tf, xmin_local, xmax_local, a, cfl, dx
+param = (; N_local, Tf, dx, a, cfl)
 
 
 # To generate a initial solution through initial condition
@@ -102,7 +102,7 @@ end
 # Exact solution calculation
 function exact_solution!(param, x, exact_sol)
     for i in 1:param.N_local
-        exact_sol[i] = sin(2.0 * π * (x[i]-(param.a * param.t)))
+        exact_sol[i] = sin(2.0 * π * (x[i]-(param.a * param.Tf)))
     end
 end
 
@@ -125,16 +125,16 @@ function solver(param)
     # Invoking initial condition
     initial_u!(param, x_local, u)
 
-    j = 0.0
+    t = 0.0
     it = 0.0
 
     dt = param.cfl * param.dx / abs(param.a)
     sigma = abs(a) * dt / param.dx        # as a substitute to cfl
 
-    while j < t
+    while t < Tf
         # -------Crucial block-------------
-        if j + dt > t
-            dt = t - j                      # if `j + dt` goes beyond `t` then loop will quit in next iteration hence solution will not get calculated till `t`
+        if t + dt > Tf
+            dt = Tf - t                      # if `j + dt` goes beyond `t` then loop will quit in next iteration hence solution will not get calculated till `t`
                                             # With this, solution will get calculated as close to `t`
             sigma = dt * abs(param.a) / param.dx
         end
@@ -144,7 +144,7 @@ function solver(param)
 
         update_lw!(u, unew, sigma)
         @views u[2:end-1] .= unew[2:end-1]      # Use . for element-wise operation on vector
-        j += dt
+        t += dt
         it += 1
     end
     local_err = error_cal(param, exact_sol, u)
@@ -172,14 +172,14 @@ function solver(param)
 
     if rank == 0
         # Plotting: saved as "linadv1D_par.png"
-        run(`sh -c "cat ../linadv/num_sol_par_*.txt > numerical_parallel.txt"`)
-        run(`sh -c "cat ../linadv/exact_sol_par_*.txt > exact_parallel.txt"`)
+        run(`sh -c "cat num_sol_par_*.txt > numerical_parallel.txt"`)
+        run(`sh -c "cat exact_sol_par_*.txt > exact_parallel.txt"`)
 
-        run(`sh -c "rm ../linadv/num_sol_par_*.txt"`)
-        run(`sh -c "rm ../linadv/exact_sol_par_*.txt"`)
+        run(`sh -c "rm num_sol_par_*.txt"`)
+        run(`sh -c "rm exact_sol_par_*.txt"`)
 
-        num_data = readdlm("../linadv/numerical_parallel.txt", Float64)
-        exact_data = readdlm("../linadv/exact_parallel.txt", Float64)
+        num_data = readdlm("numerical_parallel.txt", Float64)
+        exact_data = readdlm("exact_parallel.txt", Float64)
 
         plot(num_data[:,1],num_data[:,2], 
              label="Exact Solution",
@@ -192,7 +192,7 @@ function solver(param)
               linewidth=2, linestyle=:dot, linecolor="black", 
               dpi=150)
 
-        savefig("../linadv/linadv1D_par.png")
+        savefig("linadv1D_par.png")
         println("DONE")
     end
 end

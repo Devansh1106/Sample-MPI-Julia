@@ -27,7 +27,7 @@ end
 # Exact solution calculation
 function exact_solution!(param, x, exact_sol)
     for i in 1:param.N
-        exact_sol[i] = sin(2.0 * π * (x[i]-(param.a * param.t)))
+        exact_sol[i] = sin(2.0 * π * (x[i]-(param.a * param.Tf)))
     end
 end
 
@@ -54,25 +54,24 @@ function solver(param)
     # Invoking initial condition
     initial_u!(param, x, u)
 
-    j = 0.0
+    t = 0.0
     it = 0.0
 
     dt = param.cfl * dx / abs(a)
-    sigma = abs(a) * dt / dx        # as a substitute to cfl
+    sigma = abs(a) * dt / dx            # as a substitute to cfl
 
 
-    while j < t 
+    while t < Tf 
         # -------Crucial block-------------
-        if j + dt > t
-            dt = t - j                  # example: if j= 0.99 (<param.t) and param.dt = 0.5 hence if now loop runs it will give solution for final time
-                                        # param.t = 0.99+0.5 which voilates the condition. Hence need to check this. Not very clear to me!!!
+        if t + dt > Tf
+            dt = Tf - t                    
             sigma = dt * abs(a) / dx
         end
         # ---------------------------------
 
         update_lw!(u, unew, sigma)
         u .= unew                       # Use . for element-wise operation on vector
-        j += dt
+        t += dt
         it += 1
     end
     err = error_cal(param, exact_sol, u)
@@ -109,9 +108,9 @@ end
 # for inputting parameters of the simulation
 xmin, xmax = 0.0, 1.0                   # [xmin, xmax]
 a = 1                                   # velocity
-N, t = 100, 1                           # N = number of grid points, t = final time
+N, Tf = 100, 1                           # N = number of grid points, t = final time
 cfl = 0.8
 dx = (xmax - xmin)/(N-1)
-@show N, t, xmin, xmax, a, cfl
-param = (; N, t, dx, xmin, a, cfl)
+@show N, Tf, xmin, xmax, a, cfl
+param = (; N, Tf, dx, xmin, a, cfl)
 solver(param)
