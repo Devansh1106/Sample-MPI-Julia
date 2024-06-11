@@ -39,7 +39,7 @@ dx = (xmax - xmin)/(N - 1)
 
 # if N % size !== 0 then last rank will have different number of cells
 # otherwise, same.
-xmin_local = dx * rank * N_local
+xmin_local = xmin + dx * rank * N_local
 if rank == size - 1
     N_local = N - rank*N_local
 end
