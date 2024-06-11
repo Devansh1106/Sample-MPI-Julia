@@ -171,38 +171,38 @@ function solver(param)
     rank == 0 ? println("Time taken: $(time_end - time_start)") : nothing
 
     # Writing solution to Files
-    open("../linadv/linadv_rma/num_sol_par_$rank.txt", "w") do io
+    open("num_sol_par_$rank.txt", "w") do io
         writedlm(io, [x_local u[2:end-1]], "\t\t")
     end
 
-    open("../linadv/linadv_rma/exact_sol_par_$rank.txt", "w") do io
+    open("exact_sol_par_$rank.txt", "w") do io
         writedlm(io, [x_local exact_sol], "\t\t")
     end
 
     if rank == 0
         # Plotting: saved as "linadv1D_par.png"
-        run(`sh -c "cat ../linadv/linadv_rma/num_sol_par_*.txt > ../linadv/linadv_rma/numerical_parallel.txt"`)
-        run(`sh -c "cat ../linadv/linadv_rma/exact_sol_par_*.txt > ../linadv/linadv_rma/exact_parallel.txt"`)
+        run(`sh -c "cat num_sol_par_*.txt > numerical_parallel.txt"`)
+        run(`sh -c "cat exact_sol_par_*.txt > exact_parallel.txt"`)
 
-        run(`sh -c "rm ../linadv/linadv_rma/num_sol_par_*.txt"`)
-        run(`sh -c "rm ../linadv/linadv_rma/exact_sol_par_*.txt"`)
+        run(`sh -c "rm num_sol_par_*.txt"`)
+        run(`sh -c "rm exact_sol_par_*.txt"`)
 
-        num_data = readdlm("../linadv/linadv_rma/numerical_parallel.txt", Float64)
-        exact_data = readdlm("../linadv/linadv_rma/exact_parallel.txt", Float64)
+        # num_data = readdlm("numerical_parallel.txt", Float64)
+        # exact_data = readdlm("exact_parallel.txt", Float64)
 
-        plot(num_data[:,1],num_data[:,2], 
-             label="Exact Solution",
-             linestyle=:solid, linewidth=2,
-             dpi=150)
+        # plot(num_data[:,1],num_data[:,2], 
+        #      label="Exact Solution",
+        #      linestyle=:solid, linewidth=2,
+        #      dpi=150)
 
-        plot!(exact_data[:,1],exact_data[:,2], 
-              label="Numerical Solution", xlabel="Domain", ylabel="solution values(u)",
-              title="Solution Plot",
-              linewidth=2, linestyle=:dot, linecolor="black", 
-              dpi=150)
+        # plot!(exact_data[:,1],exact_data[:,2], 
+        #       label="Numerical Solution", xlabel="Domain", ylabel="solution values(u)",
+        #       title="Solution Plot",
+        #       linewidth=2, linestyle=:dot, linecolor="black", 
+        #       dpi=150)
 
-        savefig("../linadv/linadv_rma/linadv1D_rma.png")
-        println("DONE")
+        # savefig("linadv1D_rma.png")
+        # println("Plot is in `linadv1D_rma.png` file")
     end
 end
 
