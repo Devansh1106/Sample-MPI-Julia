@@ -1,8 +1,9 @@
 ## Usage
 To run the code in `linadv1D_rma_act.jl` and in `linadv1d_rma_pass.jl`:
-```
+```bash
 cd linadv/linadv_rma
 mpiexecjl -np <processes> julia <file-name.jl> <N> <Tt> <cfl> <a>
+./rm.sh
 ```
 - `<N>`: Total number of grid points
 
@@ -13,9 +14,9 @@ mpiexecjl -np <processes> julia <file-name.jl> <N> <Tt> <cfl> <a>
 - `<a>`: advection velocity
 
 ## Visualization
-To visualize the results, run the following command after generating the solution files:
+To visualize the results, run the following command after generating the solution files and running the `rm.sh` script file:
 
-```julia
-julia plot.jl
+```bash
+julia plot_rma.jl
 ```
 
