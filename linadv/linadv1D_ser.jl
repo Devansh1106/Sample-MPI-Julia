@@ -6,6 +6,8 @@
 
 using DelimitedFiles
 using Plots
+using TimerOutputs
+const to = TimerOutput()
 
 # To generate a initial solution through initial condition
 function initial_u!(param, x, u)
@@ -83,34 +85,21 @@ function solver(param)
     println("---------------------------")
 
     # Writing solution to Files
-    open("../linadv/num_sol.txt","w") do io
+    open("num_sol.txt","w") do io
         writedlm(io, [x u], "\t\t")
     end
-    open("../linadv/exact_sol.txt","w") do io
+    open("exact_sol.txt","w") do io
         writedlm(io, [x exact_sol], "\t\t")
     end
-
-    # Plotting: saved as "linadv1D_ser.png"
-    plot(x, exact_sol,
-        label="Exact Solution",
-        linestyle=:solid, linewidth=2,
-        dpi=150)
-
-    plot!(x, u,
-        label="Numerical Solution",
-        xlabel="Domain", ylabel="solution values(u)",
-        title="Solution Plot",
-        linewidth=2, linestyle=:dot, linecolor="black",
-        dpi=150)
-    savefig("../linadv/linadv1D_ser.png")
 end
 
 # for inputting parameters of the simulation
 xmin, xmax = 0.0, 1.0                   # [xmin, xmax]
 a = 1                                   # velocity
-N, Tf = 100, 1                           # N = number of grid points, t = final time
+N, Tf = 320, 1                          # N = number of grid points, t = final time
 cfl = 0.8
 dx = (xmax - xmin)/(N-1)
 @show N, Tf, xmin, xmax, a, cfl
 param = (; N, Tf, dx, xmin, a, cfl)
-solver(param)
+@timeit to "Solver" solver(param)
+show(to)
