@@ -7,13 +7,14 @@
 
 using DelimitedFiles
 using Plots
+using TimerOutputs
 using MPI
 MPI.Init()
 
 comm = MPI.COMM_WORLD
 rank = MPI.Comm_rank(comm)
 size = MPI.Comm_size(comm)
-rank == 0 ? time_start = MPI.Wtime() : nothing
+const to = TimerOutput()
 
 
 # for inputting parameters of the simulation
@@ -30,7 +31,7 @@ end
 
 N = parse(Int, ARGS[1])         # N = number of grid points
 @assert N > size
-Tf = parse(Int, ARGS[2])         # t = final time
+Tf = parse(Int, ARGS[2])        # t = final time
 cfl = parse(Float64, ARGS[3])
 a = parse(Int, ARGS[4])         # velocity
 
@@ -142,7 +143,7 @@ function solver(param)
     while t < Tf
         # -------Crucial block-------------
         if t + dt > Tf
-            dt = Tf - t                          # if `j + dt` goes beyond `t` then loop will quit in next iteration hence solution will not get calculated till `t`
+            dt = Tf - t                         # if `j + dt` goes beyond `t` then loop will quit in next iteration hence solution will not get calculated till `t`
                                                 # With this, solution will get calculated as close to `t`
             sigma = dt * abs(param.a) / param.dx
         end
@@ -156,7 +157,6 @@ function solver(param)
     end
     local_err = error_cal(param, exact_sol, u)
     MPI.Accumulate!(local_err, MPI.SUM, win; rank=0, disp=0)
-    # global_err = MPI.Reduce(local_err, +, comm, root=0)
     collective_win_free(win)
     
     if rank == 0
@@ -166,9 +166,6 @@ function solver(param)
         println("Iterations: ", it)
         println("---------------------------")
     end
-        
-    rank == 0 ? time_end = MPI.Wtime() : nothing
-    rank == 0 ? println("Time taken: $(time_end - time_start)") : nothing
 
     # Writing solution to Files
     open("num_sol_par_$rank.txt", "w") do io
@@ -178,32 +175,8 @@ function solver(param)
     open("exact_sol_par_$rank.txt", "w") do io
         writedlm(io, [x_local exact_sol], "\t\t")
     end
-
-    if rank == 0
-        # Plotting: saved as "linadv1D_par.png"
-        run(`sh -c "cat num_sol_par_*.txt > numerical_parallel.txt"`)
-        run(`sh -c "cat exact_sol_par_*.txt > exact_parallel.txt"`)
-
-        run(`sh -c "rm num_sol_par_*.txt"`)
-        run(`sh -c "rm exact_sol_par_*.txt"`)
-
-        # num_data = readdlm("numerical_parallel.txt", Float64)
-        # exact_data = readdlm("exact_parallel.txt", Float64)
-
-        # plot(num_data[:,1],num_data[:,2], 
-        #      label="Exact Solution",
-        #      linestyle=:solid, linewidth=2,
-        #      dpi=150)
-
-        # plot!(exact_data[:,1],exact_data[:,2], 
-        #       label="Numerical Solution", xlabel="Domain", ylabel="solution values(u)",
-        #       title="Solution Plot",
-        #       linewidth=2, linestyle=:dot, linecolor="black", 
-        #       dpi=150)
-
-        # savefig("linadv1D_rma.png")
-        # println("Plot is in `linadv1D_rma.png` file")
-    end
 end
-
-solver(param)
+@timeit to "Solver" solver(param)
+if rank == 0
+    show(to)
+end

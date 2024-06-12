@@ -8,9 +8,10 @@
 - This file contain code for solving **linear advection equation** in 1D in a *serial* programming approach.  
 
 ## Usage
-- Use the following to compile and `linadv1D_ser.jl` file. This operation will create 2 files in the current folder as of `linadv1D_ser.jl`  
--   ```
-    julia path/to/file/linadv1D_ser.jl
+- Use the following commands to compile and run `linadv1D_ser.jl` file. This operation will create 2 solution files in the current folder as of `linadv1D_ser.jl`  
+    ```bash
+    cd linadv
+    julia linadv1D_ser.jl
     ```  
 - Two files: `exact_sol.txt` and `num_sol.txt` will get created, contains *exact solution* and *numerial solution* respectively.
 
@@ -63,9 +64,10 @@ This section explains the `functions` involved in the `linadv1D_ser.jl` code.
         - While looping from `t=0` to `t=t_final`, the looping index `j` can go beyond `t_final` ($j + dt > t$) due to the so value of `dt`.
         - Implemented `if` condition is needed to check the above and if `if` is `true` then `dt` needs to be changed to $dt = t - j$ and hence `sigma` needs to be changed accordingly.
 ## Plotting
-- See `Usage` section for plotting of numerical solution along with the exact solution.  
-- Graph will be in the `.png` file.
-
+Graph will be in the `linadv1D_ser.png` file.  
+```bash
+julia plot_serial.jl
+```
 # Parallel Version (w/o RMA)
 
 ## linadv1D_par.jl
@@ -76,20 +78,29 @@ This section explains the `functions` involved in the `linadv1D_ser.jl` code.
 
 ## Usage
 - Use the following to compile and `linadv1D_par.jl` file. This operation will create 2 files in the current folder as of `linadv1D_par.jl` file.  
--   ```
-    mpiexecjl -np total_processes julia path/to/file/linadv1D_par.jl <N> <t> <cfl> <a>
+    ```bash
+    mpiexecjl -np total_processes julia linadv1D_par.jl <N> <t> <cfl> <a>
+    ./linadv_rma/rm.sh
     ```  
-- Example command:
-    ```
-    mpiexecjl -np 4 julia linadv/linadv1D_par.jl 100 1 0.8 1
-    ```
 - `<N>` refers to total grid points. (Square grid)
 - `<t>` refers to final time step.
 - `<cfl>` refers to cfl number.
 - `<a>` refers to advection to velocity.
+
+- Example command:
+    ```bash
+    mpiexecjl -np 4 julia linadv1D_par.jl 100 1 0.8 1
+    ```
+
 - Two files: `exact_sol.txt` and `num_sol.txt` will get created, contains *exact solution* and *numerial solution* respectively.
 
 -  One `.png` file will get created containing the graph of *exact solution* vs *numerical solution*.
+
+## Plotting
+Graph will be in the `linadv1D_par.png` file.
+```bash
+julia plot_parallel.jl
+```
 
 ## Functions
 - All other functions are same as serial verison except the one that is explained here.
