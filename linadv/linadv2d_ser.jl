@@ -11,80 +11,114 @@ const to = TimerOutput()
 
 # To generate a initial solution through initial condition
 function initial_u!(param, x, y, u)
-    u = @. sin(2.0 * π * x) * sin(2.0 * π * y)
+    u[2:end-1,2:end-1] = @. sin(2.0 * π * x) * sin(2.0 * π * y)
+    return u
 end
 
 # Lex-Wendroff method 
 function update_lw!(u, unew, sigma_x, sigma_y)
-    unew[1,1] = u[1,1] - 0.5 * sigma_x * (u[2,1] - u[end-1,1])
-                       - 0.5 * sigma_y * (u[1,2] - u[1, end-1])
-                       + 0.5 * sigma_x^2 * (u[end-1,1] - 2.0 * u[1,1] + u[2,1])
-                       + 0.25 * sigma_x * sigma_y * (u[2,2] - u[end-1,2] - u[2,end-1] + u[end-1,end-1])
-                       + 0.5 * sigma_y^2 * (u[1,end-1] - 2.0 * u[1,1] * u[1,2])
-    @views unew[2:end-1,2:end-1] = u[2:end-1,2:end-1] - 0.5 * sigma_x * (u[3:end,2:end-1] - u[1:end-2,2:end-1])
-                                                      - 0.5 * sigma_y * (u[2:end-1,3:end] - u[2:end-1,1:end-2])
-                                                      + 0.5 * sigma_x^2 * (u[1:end-2,2:end-1] - 2.0*u[2:end-1,2:end-1] + u[3:end,2:end-1])
-                                                      + 0.25 * sigma_x * sigma_y * (u[3:end,3:end] - u[1:end-2,3:end] - u[3:end,1:end] + u[1:end-2,1:end-2])
-                                                      + 0.5 * sigma_y^2 * (u[2:end-1,1:end-2] - 2.0*u[2:end-1,2:end-1] + u[2:end-1,3:end])
-    unew[end,end] = u[end,end] - 0.5 * sigma_x * (u[2,end] - u[end-1,end])
-                               - 0.5 * sigma_y * (u[end,2] - u[end,end-1])
-                               + 0.5 * sigma_x^2 * (u[end-1,end] - 2.0 * u[end,end] +u[2,end])
-                               + 0.25 * sigma_x * sigma_y * (u[2,2] - u[end-1,2] - u[2,end-1] + u[end-1,end-1])
-                               + 0.5 * sigma_y^2 * (u[end,end-1] - 2.0 * u[end,end] + u[end,2])
+    @views unew .= (u[2:end-1,2:end-1] - 0.5 * sigma_x * (u[3:end,2:end-1] - u[1:end-2,2:end-1])
+                                       - 0.5 * sigma_y * (u[2:end-1,3:end] - u[2:end-1,1:end-2])
+                                       + 0.5 * sigma_x^2 * (u[1:end-2,2:end-1] - 2.0*u[2:end-1,2:end-1] + u[3:end,2:end-1])
+                                       + 0.25 * sigma_x * sigma_y * (u[3:end,3:end] - u[1:end-2,3:end] - u[3:end,1:end-2] + u[1:end-2,1:end-2])
+                                       + 0.5 * sigma_y^2 * (u[2:end-1,1:end-2] - 2.0*u[2:end-1,2:end-1] + u[2:end-1,3:end]))
+    # print_matrix(unew)
+    # println()
+    return unew
 end
 
 # Exact solution calculation
 function exact_solution!(param, x, y, exact_sol)
     _a = param.a
+    _b = param.b
     _Tf = param.Tf
-    exact_sol = @. sin(2.0 * π * (x-(_a * _Tf))) * sin(2.0 * π * (y-(_a * _Tf)))
+    exact_sol = @. sin(2.0 * π * (x-(_a * _Tf))) * sin(2.0 * π * (y-(_b * _Tf)))
+    # for i in 1:nx
+    #     for j in 1:ny
+    #         exact_sol[i,j] = sin(2.0 * π * (x[i]-(_a * _Tf))) * sin(2.0 * π * (y[j]-(_b * _Tf)))
+    #     end
+    # end
+    # print_matrix(exact_sol)
+    return exact_sol
 end
 
 # Error calculation
-function error_cal(param, exact_sol, u)
-    error = 0.0
-    error = sum(abs.(exact_sol - u))
-    error = error/(param.nx * param.ny)
-    return error
+function error_cal!(param, err, exact_sol, u)
+    @views err = sum(abs.(exact_sol[1:end,1:end] - u[2:end-1,2:end-1]))
+    err = err/(param.nx * param.ny)
+    return err
+end
+
+function halo_exchange!(u, x, y)
+    # Updating top and bottom row
+    @views u[1,2:end-1] .= u[end-1,2:end-1] 
+    @views u[end,2:end-1] .= u[2,2:end-1]
+    
+    # Updating left and right columns
+    @views u[2:end-1,1] .= u[2:end-1,end-1] 
+    @views u[2:end-1,end] .= u[2:end-1,2]
+
+    # Updating corners
+    u[1,1] = u[end-1,end-1]
+    u[end,end] = u[2,2]
+    u[end,1] = u[2,end-1]
+    u[1,end] = u[end-1, 2]
+    return u
+end
+
+# Custom printing function
+function print_matrix(mat)
+    for i in 1:size(mat, 1)
+        for j in 1:size(mat, 2)
+            print(mat[i, j], "\t")
+        end
+        println()
+    end
 end
 
 function solver(param)
-    u = Array{Float64, 2}(undef, param.nx, param.ny)              # Initial solution
+    u = Array{Float64, 2}(undef, param.nx+2, param.ny+2)              # Initial solution
     unew = Array{Float64, 2}(undef, param.nx, param.ny)              # updated solution
     x = Array{Float64, 1}(undef, param.nx)             # grid in x direction
     y = Array{Float64, 1}(undef, param.ny)             # grid in y direction
-
+    err = 0.0
     exact_sol = Array{Float64, 2}(undef, param.nx, param.ny)              # exact solution array
     
-    # 2D grid generation Remove for loop use LinRange (check why is it efficient?)
-    for i in 1:param.nx
-        x = @. param.xmin + (i-1)*param.dx
-    end
-    exact_solution!(param, x, exact_sol)
-    # Invoking initial condition
-    initial_u!(param, x, u)
+    # 2D grid generation
+    x = LinRange(param.xmin+0.5*param.dx, param.xmax-0.5*param.dx, nx)
+    y = LinRange(param.ymin+0.5*param.dy, param.ymax-0.5*param.dy, ny)
+    x = x'
 
+    exact_sol = exact_solution!(param, x, y, exact_sol)
+    # Invoking initial condition
+    u = initial_u!(param, x, y, u)
     t = 0.0
     it = 0.0
 
-    dt = param.cfl/(abs(ux)/dx + abs(uy)/dy)
-    sigma = abs(a) * dt / dx            # as a substitute to cfl
+    dt = param.cfl/(abs(a)/dx + abs(b)/dy)
+    @show dt
+    sigma_x = abs(a) * dt / dx            # as a substitute to cfl
+    sigma_y = abs(b) * dt / dy            # as a substitute to cfl
 
 
     while t < Tf 
         # -------Crucial block-------------
         if t + dt > Tf
             dt = Tf - t                    
-            sigma = dt * abs(a) / dx
+            sigma_x = dt * abs(param.a) / param.dx
+            sigma_y = dt * abs(param.b) / param.dy
         end
         # ---------------------------------
 
-        update_lw!(u, unew, sigma)
-        u .= unew                       # Use . for element-wise operation on vector
+        # halo exchange
+        u = halo_exchange!(u, x, y)
+        unew = update_lw!(u, unew, sigma_x, sigma_y)
+        @views u[2:end-1,2:end-1] .= unew                       # Use . for element-wise operation on vector
         t += dt
         it += 1
     end
-    err = error_cal(param, exact_sol, u)
+    # print_matrix(u)
+    err = error_cal!(param, err, exact_sol, u)
 
     # Output to terminal    
     println("---------------------------")
@@ -92,12 +126,12 @@ function solver(param)
     println("Iterations: ", it)
     println("---------------------------")
 
-    # Writing solution to Files
-    open("num_sol.txt","w") do io
-        writedlm(io, [x u], "\t\t")
+    # Writing solution to Files     How are we going to write this in files?
+    open("num_sol2D.txt","w") do io
+        writedlm(io, [x' y u[2:end-1,2:end-1]], "\t\t")
     end
-    open("exact_sol.txt","w") do io
-        writedlm(io, [x exact_sol], "\t\t")
+    open("exact_sol2D.txt","w") do io
+        writedlm(io, [x' y exact_sol], "\t\t")
     end
 end
 
@@ -105,14 +139,15 @@ end
 xmin, xmax = 0.0, 1.0                   # [xmin, xmax]
 ymin, ymax = 0.0, 1.0                   # [ymin, ymax]
 
-ux, uy = 1.0, 1.0                                  # velocity
+a, b = 1.0, 1.0                                  # velocity
 nx, ny = 100, 100
-Tf = 1                            # N = number of grid points, t = final time
+Tf = 1                          # N = number of grid points, t = final time
 cfl = 0.8
-dx = (xmax - xmin)/(nx-1)
-dy = (ymax - ymin)/(ny-1)
+dx = (xmax - xmin)/(nx)
+dy = (ymax - ymin)/(ny)
 
-# @show N, Tf, xmin, xmax, 
-param = (; N, Tf, dx, dy, xmin, ymin, ux, uy, cfl)
+# @show Tf, xmin, xmax, 
+param = (; nx, ny, Tf, dx, dy, xmin, xmax, ymin, ymax, a, b, cfl)
+@show param
 @timeit to "Solver" solver(param)
-# show(to)
+show(to)
