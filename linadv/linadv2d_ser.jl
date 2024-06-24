@@ -7,6 +7,7 @@
 using DelimitedFiles
 using Plots
 using TimerOutputs
+using LoopVectorization
 const to = TimerOutput()
 
 # To generate a initial solution through initial condition
@@ -16,12 +17,14 @@ function initial_u!(x, y, u)
 end
 
 # Lex-Wendroff method 
-function update_lw!(u, unew, sigma_x, sigma_y)
-    @views unew .= (u[2:end-1,2:end-1] - 0.5 * sigma_x * (u[3:end,2:end-1] - u[1:end-2,2:end-1])
-                                       - 0.5 * sigma_y * (u[2:end-1,3:end] - u[2:end-1,1:end-2])
-                                       + 0.5 * sigma_x^2 * (u[1:end-2,2:end-1] - 2.0*u[2:end-1,2:end-1] + u[3:end,2:end-1])
-                                       + 0.25 * sigma_x * sigma_y * (u[3:end,3:end] - u[1:end-2,3:end] - u[3:end,1:end-2] + u[1:end-2,1:end-2])
-                                       + 0.5 * sigma_y^2 * (u[2:end-1,1:end-2] - 2.0*u[2:end-1,2:end-1] + u[2:end-1,3:end]))
+function update_lw!(param, u, unew, sigma_x, sigma_y)
+    for i in 2:param.nx+1, j in 2:param.ny+1
+        @turbo unew[i-1,j-1] = (u[i,j] - 0.5 * sigma_x * (u[i+1,j] - u[i-1,j])
+                                       - 0.5 * sigma_y * (u[i,j+1] - u[i,j-1])
+                                       + 0.5 * sigma_x^2 * (u[i-1,j] - 2.0*u[i,j] + u[i+1,j])
+                                       + 0.25 * sigma_x * sigma_y * (u[i+1,j+1] - u[i-1,j+1] - u[i+1,j-1] + u[i-1,j-1])
+                                       + 0.5 * sigma_y^2 * (u[i,j-1] - 2.0*u[i,j] + u[i,j+1]))
+    end
     return unew
 end
 
@@ -43,12 +46,12 @@ end
 
 function halo_exchange!(u)
     # Updating top and bottom row
-    @views u[1,2:end-1] .= u[end-1,2:end-1] 
-    @views u[end,2:end-1] .= u[2,2:end-1]
+    @views u[1,2:end-1] = u[end-1,2:end-1] 
+    @views u[end,2:end-1] = u[2,2:end-1]
     
     # Updating left and right columns
-    @views u[2:end-1,1] .= u[2:end-1,end-1] 
-    @views u[2:end-1,end] .= u[2:end-1,2]
+    @views u[2:end-1,1] = u[2:end-1,end-1] 
+    @views u[2:end-1,end] = u[2:end-1,2]
 
     # Updating corners
     u[1,1] = u[end-1,end-1]
@@ -72,10 +75,14 @@ function solver(param)
     x = x'
 
     # Exact solution
-    exact_sol = exact_solution!(param, x, y, exact_sol)
+    @timeit to "exact_solution!" begin
+        exact_sol = exact_solution!(param, x, y, exact_sol)
+    end
 
     # Invoking initial condition
-    u = initial_u!(x, y, u)
+    @timeit to "initial_u!" begin
+        u = initial_u!(x, y, u)
+    end
 
     t = 0.0
     it = 0.0
@@ -95,13 +102,20 @@ function solver(param)
         # ---------------------------------
 
         # halo exchange
-        u = halo_exchange!(u)
-        unew = update_lw!(u, unew, sigma_x, sigma_y)
+        @timeit to "halo_exchange!" begin
+            u = halo_exchange!(u)
+        end
+
+        @timeit to "update_lw!" begin
+            unew = update_lw!(param, u, unew, sigma_x, sigma_y)
+        end
         @views u[2:end-1,2:end-1] .= unew        # Use . for element-wise operation on vector
         t += dt
         it += 1
     end
-    err = error_cal!(param, err, exact_sol, u)
+    @timeit to "error_cal!" begin
+        err = error_cal!(param, err, exact_sol, u)
+    end
 
     # Output to terminal    
     println("---------------------------")
@@ -126,8 +140,8 @@ a, b = 1.0, 1.0                         # velocity
 nx, ny = 200, 200
 Tf = 1
 cfl = 0.8
-dx = (xmax - xmin)/(nx)
-dy = (ymax - ymin)/(ny)
+dx = (xmax - xmin)/nx
+dy = (ymax - ymin)/ny
 
 param = (; nx, ny, Tf, dx, dy, xmin, xmax, ymin, ymax, a, b, cfl)
 @show param
