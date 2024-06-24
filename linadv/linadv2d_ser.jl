@@ -11,7 +11,7 @@ const to = TimerOutput()
 
 # To generate a initial solution through initial condition
 function initial_u!(param, x, y, u)
-    u[2:end-1,2:end-1] = @. sin(2.0 * π * x) * sin(2.0 * π * y)
+    @views u[2:end-1,2:end-1] = @. sin(2.0 * π * x) * sin(2.0 * π * y)
     return u
 end
 
@@ -22,8 +22,6 @@ function update_lw!(u, unew, sigma_x, sigma_y)
                                        + 0.5 * sigma_x^2 * (u[1:end-2,2:end-1] - 2.0*u[2:end-1,2:end-1] + u[3:end,2:end-1])
                                        + 0.25 * sigma_x * sigma_y * (u[3:end,3:end] - u[1:end-2,3:end] - u[3:end,1:end-2] + u[1:end-2,1:end-2])
                                        + 0.5 * sigma_y^2 * (u[2:end-1,1:end-2] - 2.0*u[2:end-1,2:end-1] + u[2:end-1,3:end]))
-    # print_matrix(unew)
-    # println()
     return unew
 end
 
@@ -33,12 +31,6 @@ function exact_solution!(param, x, y, exact_sol)
     _b = param.b
     _Tf = param.Tf
     exact_sol = @. sin(2.0 * π * (x-(_a * _Tf))) * sin(2.0 * π * (y-(_b * _Tf)))
-    # for i in 1:nx
-    #     for j in 1:ny
-    #         exact_sol[i,j] = sin(2.0 * π * (x[i]-(_a * _Tf))) * sin(2.0 * π * (y[j]-(_b * _Tf)))
-    #     end
-    # end
-    # print_matrix(exact_sol)
     return exact_sol
 end
 
@@ -66,37 +58,29 @@ function halo_exchange!(u, x, y)
     return u
 end
 
-# Custom printing function
-function print_matrix(mat)
-    for i in 1:size(mat, 1)
-        for j in 1:size(mat, 2)
-            print(mat[i, j], "\t")
-        end
-        println()
-    end
-end
-
 function solver(param)
-    u = Array{Float64, 2}(undef, param.nx+2, param.ny+2)              # Initial solution
-    unew = Array{Float64, 2}(undef, param.nx, param.ny)              # updated solution
-    x = Array{Float64, 1}(undef, param.nx)             # grid in x direction
-    y = Array{Float64, 1}(undef, param.ny)             # grid in y direction
+    u = Array{Float64, 2}(undef, param.nx+2, param.ny+2)       # Initial solution
+    unew = Array{Float64, 2}(undef, param.nx, param.ny)        # updated solution
+    x = Array{Float64, 1}(undef, param.nx)                     # grid in x direction
+    y = Array{Float64, 1}(undef, param.ny)                     # grid in y direction
+    exact_sol = Array{Float64, 2}(undef, param.nx, param.ny)   # exact solution array
     err = 0.0
-    exact_sol = Array{Float64, 2}(undef, param.nx, param.ny)              # exact solution array
     
     # 2D grid generation
     x = LinRange(param.xmin+0.5*param.dx, param.xmax-0.5*param.dx, nx)
     y = LinRange(param.ymin+0.5*param.dy, param.ymax-0.5*param.dy, ny)
     x = x'
 
+    # Exact solution
     exact_sol = exact_solution!(param, x, y, exact_sol)
+
     # Invoking initial condition
     u = initial_u!(param, x, y, u)
+
     t = 0.0
     it = 0.0
 
     dt = param.cfl/(abs(a)/dx + abs(b)/dy)
-    @show dt
     sigma_x = abs(a) * dt / dx            # as a substitute to cfl
     sigma_y = abs(b) * dt / dy            # as a substitute to cfl
 
@@ -113,11 +97,10 @@ function solver(param)
         # halo exchange
         u = halo_exchange!(u, x, y)
         unew = update_lw!(u, unew, sigma_x, sigma_y)
-        @views u[2:end-1,2:end-1] .= unew                       # Use . for element-wise operation on vector
+        @views u[2:end-1,2:end-1] .= unew        # Use . for element-wise operation on vector
         t += dt
         it += 1
     end
-    # print_matrix(u)
     err = error_cal!(param, err, exact_sol, u)
 
     # Output to terminal    
@@ -139,14 +122,13 @@ end
 xmin, xmax = 0.0, 1.0                   # [xmin, xmax]
 ymin, ymax = 0.0, 1.0                   # [ymin, ymax]
 
-a, b = 1.0, 1.0                                  # velocity
-nx, ny = 100, 100
-Tf = 1                          # N = number of grid points, t = final time
+a, b = 1.0, 1.0                         # velocity
+nx, ny = 200, 200
+Tf = 1
 cfl = 0.8
 dx = (xmax - xmin)/(nx)
 dy = (ymax - ymin)/(ny)
 
-# @show Tf, xmin, xmax, 
 param = (; nx, ny, Tf, dx, dy, xmin, xmax, ymin, ymax, a, b, cfl)
 @show param
 @timeit to "Solver" solver(param)
