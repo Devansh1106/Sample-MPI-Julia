@@ -10,7 +10,7 @@ using TimerOutputs
 const to = TimerOutput()
 
 # To generate a initial solution through initial condition
-function initial_u!(param, x, y, u)
+function initial_u!(x, y, u)
     @views u[2:end-1,2:end-1] = @. sin(2.0 * π * x) * sin(2.0 * π * y)
     return u
 end
@@ -41,7 +41,7 @@ function error_cal!(param, err, exact_sol, u)
     return err
 end
 
-function halo_exchange!(u, x, y)
+function halo_exchange!(u)
     # Updating top and bottom row
     @views u[1,2:end-1] .= u[end-1,2:end-1] 
     @views u[end,2:end-1] .= u[2,2:end-1]
@@ -75,7 +75,7 @@ function solver(param)
     exact_sol = exact_solution!(param, x, y, exact_sol)
 
     # Invoking initial condition
-    u = initial_u!(param, x, y, u)
+    u = initial_u!(x, y, u)
 
     t = 0.0
     it = 0.0
@@ -95,7 +95,7 @@ function solver(param)
         # ---------------------------------
 
         # halo exchange
-        u = halo_exchange!(u, x, y)
+        u = halo_exchange!(u)
         unew = update_lw!(u, unew, sigma_x, sigma_y)
         @views u[2:end-1,2:end-1] .= unew        # Use . for element-wise operation on vector
         t += dt
