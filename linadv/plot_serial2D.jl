@@ -1,13 +1,12 @@
 using Plots
 using DelimitedFiles
 plotlyjs()
-num_data = readdlm("num_sol2D.txt", Float64)  
-exact_data = readdlm("exact_sol2D.txt", Float64)
+num_data = readdlm(joinpath(@__DIR__,"num_sol2D.txt"), Float64)  # @__DIR__ - this macro expnands to a string with directory path of the file
+exact_data = readdlm(joinpath(@__DIR__,"exact_sol2D.txt"), Float64)
 
 plot(num_data[:,1],num_data[:,2],num_data[:,3:end],
      label="Numerical Solution", st=:surface, xlabel="x", ylabel="y",
      title="Solution Plot", zlabel="Numerical solution",dpi=150)
-
 savefig("linadv2D_ser_num.html")
 
 plot(exact_data[:,1],exact_data[:,2], exact_data[:,3:end],

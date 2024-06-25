@@ -25,7 +25,6 @@ function update_lw!(param, u, unew, sigma_x, sigma_y)
                                        + 0.25 * sigma_x * sigma_y * (u[i+1,j+1] - u[i-1,j+1] - u[i+1,j-1] + u[i-1,j-1])
                                        + 0.5 * sigma_y^2 * (u[i,j-1] - 2.0*u[i,j] + u[i,j+1]))
     end
-    return unew
 end
 
 # Exact solution calculation
@@ -50,15 +49,8 @@ function halo_exchange!(u)
     @views u[end,2:end-1] = u[2,2:end-1]
     
     # Updating left and right columns
-    @views u[2:end-1,1] = u[2:end-1,end-1] 
-    @views u[2:end-1,end] = u[2:end-1,2]
-
-    # Updating corners
-    u[1,1] = u[end-1,end-1]
-    u[end,end] = u[2,2]
-    u[end,1] = u[2,end-1]
-    u[1,end] = u[end-1, 2]
-    return u
+    @views u[1:end,1] = u[1:end,end-1] 
+    @views u[1:end,end] = u[1:end,2]
 end
 
 function solver(param)
@@ -103,11 +95,11 @@ function solver(param)
 
         # halo exchange
         @timeit to "halo_exchange!" begin
-            u = halo_exchange!(u)
+            halo_exchange!(u)
         end
 
         @timeit to "update_lw!" begin
-            unew = update_lw!(param, u, unew, sigma_x, sigma_y)
+            update_lw!(param, u, unew, sigma_x, sigma_y)
         end
         @views u[2:end-1,2:end-1] .= unew        # Use . for element-wise operation on vector
         t += dt
