@@ -7,8 +7,6 @@
 using DelimitedFiles
 using Plots
 using TimerOutputs
-using LoopVectorization
-# using OffsetArrays
 using MPI
 MPI.Init()
 
@@ -27,13 +25,12 @@ end
 # Lex-Wendroff method 
 function update_lw!(param, u, unew, sigma_x, sigma_y)
     for i in 2:param.nx+1, j in 2:param.ny+1
-        @turbo unew[i-1,j-1] = (u[i,j] - 0.5 * sigma_x * (u[i+1,j] - u[i-1,j])
-                                       - 0.5 * sigma_y * (u[i,j+1] - u[i,j-1])
-                                       + 0.5 * sigma_x^2 * (u[i-1,j] - 2.0*u[i,j] + u[i+1,j])
-                                       + 0.25 * sigma_x * sigma_y * (u[i+1,j+1] - u[i-1,j+1] - u[i+1,j-1] + u[i-1,j-1])
-                                       + 0.5 * sigma_y^2 * (u[i,j-1] - 2.0*u[i,j] + u[i,j+1]))
+        unew[i-1,j-1] = (u[i,j] - 0.5 * sigma_x * (u[i+1,j] - u[i-1,j])
+                                - 0.5 * sigma_y * (u[i,j+1] - u[i,j-1])
+                                + 0.5 * sigma_x^2 * (u[i-1,j] - 2.0*u[i,j] + u[i+1,j])
+                                + 0.25 * sigma_x * sigma_y * (u[i+1,j+1] - u[i-1,j+1] - u[i+1,j-1] + u[i-1,j-1])
+                                + 0.5 * sigma_y^2 * (u[i,j-1] - 2.0*u[i,j] + u[i,j+1]))
     end
-    return unew
 end
 
 # Exact solution calculation
@@ -49,38 +46,41 @@ end
 
 # Error calculation
 function error_cal!(param, exact_sol, u)
-    @views err = sum(abs.(exact_sol[1:end,1:end] - u[2:end-1,2:end-1]))
-    err = err/(param.nx * param.ny)
+    err = 0.0
+    for i in 2:param.nx+1, j in 2:param.ny+1
+        err += abs(exact_sol[i-1,j-1] - u[i,j])
+    end
+    err = err/(param.nx * param._ny)
     return err
 end
 
 function halo_exchange!(param, u, win)
     # Updating top and bottom row
-    @views u[1, 2:end-1] = u[end-1, 2:end-1] 
-    @views u[end, 2:end-1] = u[2, 2:end-1]
+    for j in 2:param.ny+1
+        u[1,j] = u[end-1,j] 
+        u[end,j] = u[2,j]
+    end
 
-    if nprocs == 1
-        # Updating top and bottom row
-        @views u[1,2:end-1] = u[end-1,2:end-1] 
-        @views u[end,2:end-1] = u[2,2:end-1]
-        
+    if nprocs == 1        
         # Updating left and right columns
-        @views u[1:end,1] = u[1:end,end-1] 
-        @views u[1:end,end] = u[1:end,2]
+        for i in 1:param.nx+2
+            u[i,1] = u[i,end-1] 
+            u[i,end] = u[i,2]
+        end
         return
     else
         next = (rank + 1) % nprocs
         prev = (rank + nprocs - 1) % nprocs
         buf = fill(0.0, param.nx+2)
         buf1 = fill(0.0, param.nx+2)
-        for i in 1:param.nx+2                       # use @turbo if it is slow(it takes memory)
+        for i in 1:param.nx+2
             buf[i] = u[i, end-1]
         end
         MPI.Win_lock(win; rank=next, type=MPI.LOCK_SHARED, nocheck=true)    # window; target_rank, lock_type, nocheck::bool
-        MPI.Put!(buf, win; rank=next, disp=0)                # origin_buf, window; target_rank, disp
+        MPI.Put!(buf, win; rank=next, disp=0)                               # origin_buf, window; target_rank, disp
         MPI.Win_unlock(win, rank=next)
 
-        for i in 1:param.nx+2                       # use @turbo if it is slow(it takes memory)
+        for i in 1:param.nx+2
             buf1[i] = u[i,2]
         end
 
@@ -94,11 +94,10 @@ function halo_exchange!(param, u, win)
             _disp = (param.ny+1) * (param.nx+2)
         end
         MPI.Win_lock(win; rank=prev, type=MPI.LOCK_SHARED, nocheck=true)    # window; target_rank, lock_type, nocheck::bool
-        MPI.Put!(buf1, win; rank=prev, disp=_disp)                # origin_buf, window; target_rank, disp
+        MPI.Put!(buf1, win; rank=prev, disp=_disp)                          # origin_buf, window; target_rank, disp
         MPI.Win_unlock(win, rank=prev)
     end
     MPI.Win_fence(win)
-    return u
 end
 
 function collective_win_create(u)
@@ -112,9 +111,6 @@ end
 
 function solver(param)
     u = Array{Float64, 2}(undef, param.nx+2, param.ny+2)       # Initial solution
-    if rank == 0
-        @show size(u)
-    end
     unew = Array{Float64, 2}(undef, param.nx, param.ny)        # updated solution
     x = Array{Float64, 1}(undef, param.nx)                     # grid in x direction
     y = Array{Float64, 1}(undef, param.ny)                     # grid in y direction
@@ -154,13 +150,15 @@ function solver(param)
 
         # halo exchange
         @timeit to "halo_exchange!" begin
-            u = halo_exchange!(param, u, win)
+            halo_exchange!(param, u, win)
         end
 
         @timeit to "update_lw!" begin
-            unew = update_lw!(param, u, unew, sigma_x, sigma_y)
+            update_lw!(param, u, unew, sigma_x, sigma_y)
         end
-        @views u[2:end-1,2:end-1] .= unew        # Use . for element-wise operation on vector
+        for i in 1:param.nx, j in 1:param.ny
+            u[i+1, j+1] = unew[i, j]        # Use . for element-wise operation on vector
+        end
         t += dt
         it += 1
     end
@@ -185,10 +183,7 @@ function solver(param)
             writedlm(io, x)
         end
     end
-    # exit()
     # Writing solution to files
-    # @show size(u[2:end-1,2:end-1])
-    # exit()
     open("num_sol2D_par_$rank.txt","w") do io
         writedlm(io, u[2:end-1,2:end-1])
     end
@@ -201,10 +196,10 @@ function solver(param)
 end
 
 # for inputting parameters of the simulation
-xmin, xmax = 0.0, 1.0                   # [xmin, xmax]
-_ymin, _ymax = 0.0, 1.0                   # [ymin, ymax]
+xmin, xmax = 0.0, 1.0                 # [xmin, xmax]
+_ymin, _ymax = 0.0, 1.0               # [ymin, ymax]
 
-a, b = 1.0, 1.0                         # velocity
+a, b = 1.0, 1.0                       # velocity
 nx, _ny = 200, 200
 Tf = 1
 cfl = 0.8
