@@ -6,6 +6,7 @@
 
 using DelimitedFiles
 using TimerOutputs
+using OffsetArrays
 using MPI
 MPI.Init()
 
@@ -16,19 +17,19 @@ const to = TimerOutput()
 
 # To generate a initial solution through initial condition
 function initial_u!(param, x, y, u)
-    for i in 2:param.nx+1, j in 2:param.ny+1
-        u[i,j] = sin(2.0 * π * x[i-1]) * sin(2.0 * π * y[j-1])
+    for i in 1:param.nx, j in 1:param.ny
+        u[i,j] = sin(2.0 * π * x[i]) * sin(2.0 * π * y[j])
     end
 end
 
 # Lex-Wendroff method 
-function update_lw!(param, u, unew, sigma_x, sigma_y)
-    for i in 2:param.nx+1, j in 2:param.ny+1
-        unew[i-1,j-1] = (u[i,j] - 0.5 * sigma_x * (u[i+1,j] - u[i-1,j])
-                                - 0.5 * sigma_y * (u[i,j+1] - u[i,j-1])
-                                + 0.5 * sigma_x^2 * (u[i-1,j] - 2.0*u[i,j] + u[i+1,j])
-                                + 0.25 * sigma_x * sigma_y * (u[i+1,j+1] - u[i-1,j+1] - u[i+1,j-1] + u[i-1,j-1])
-                                + 0.5 * sigma_y^2 * (u[i,j-1] - 2.0*u[i,j] + u[i,j+1]))
+function update_lw!(param, u, unew, sigma_x, sigma_y)   
+    for i in 1:param.nx, j in 1:param.ny
+        unew[i,j] = (u[i,j] - 0.5 * sigma_x * (u[i+1,j] - u[i-1,j])
+                            - 0.5 * sigma_y * (u[i,j+1] - u[i,j-1])
+                            + 0.5 * sigma_x^2 * (u[i-1,j] - 2.0*u[i,j] + u[i+1,j])
+                            + 0.25 * sigma_x * sigma_y * (u[i+1,j+1] - u[i-1,j+1] - u[i+1,j-1] + u[i-1,j-1])
+                            + 0.5 * sigma_y^2 * (u[i,j-1] - 2.0*u[i,j] + u[i,j+1]))
     end
 end
 
@@ -46,8 +47,8 @@ end
 # Error calculation
 function error_cal!(param, exact_sol, u)
     err = 0.0
-    for i in 2:param.nx+1, j in 2:param.ny+1
-        err += abs(exact_sol[i-1,j-1] - u[i,j])
+    for i in 1:param.nx, j in 1:param.ny
+        err += abs(exact_sol[i,j] - u[i,j])
     end
     err = err/(param.nx * param._ny)
     return err
@@ -55,16 +56,16 @@ end
 
 function halo_exchange!(param, u, win)
     # Updating top and bottom row
-    for j in 2:param.ny+1
-        u[1,j] = u[end-1,j] 
-        u[end,j] = u[2,j]
+    for j in 1:param.ny
+        u[0,j] = u[end-1,j] 
+        u[end,j] = u[1,j]
     end
 
     if nprocs == 1        
         # Updating left and right columns
-        for i in 1:param.nx+2
-            u[i,1] = u[i,end-1] 
-            u[i,end] = u[i,2]
+        for i in 0:param.nx+1
+            u[i,0] = u[i,end-1] 
+            u[i,end] = u[i,1]
         end
         return
     else
@@ -74,16 +75,16 @@ function halo_exchange!(param, u, win)
         buf1 = fill(0.0, param.nx+2)
 
         # Sending the second last column of each rank to `next` rank
-        for i in 1:param.nx+2
-            buf[i] = u[i, end-1]
+        for i in 0:param.nx+1
+            buf[i+1] = u[i, end-1]
         end
         MPI.Win_lock(win; rank=next, type=MPI.LOCK_SHARED, nocheck=true)    # window; target_rank, lock_type, nocheck::bool
         MPI.Put!(buf, win; rank=next, disp=0)                               # origin_buf, window; target_rank, disp
         MPI.Win_unlock(win, rank=next)
 
         # Sending the second column of each rank to `prev` rank
-        for i in 1:param.nx+2
-            buf1[i] = u[i,2]
+        for i in 0:param.nx+1
+            buf1[i+1] = u[i,1]
         end
 
         # Displacement calculation according to target_rank
@@ -104,8 +105,8 @@ function halo_exchange!(param, u, win)
 end
 
 # Window creation routine
-function collective_win_create(u)
-    win = MPI.Win_create(u, comm)
+function collective_win_create(param, u)
+    win = MPI.Win_create(pointer(u), (param.nx+2) * (param.ny+2), sizeof(Float64), comm)
     return win
 end
     
@@ -116,6 +117,7 @@ end
 
 function solver(param)
     u = Array{Float64, 2}(undef, param.nx+2, param.ny+2)       # Initial solution
+    u = OffsetArray(u, 0:param.nx+1, 0:param.ny+1)             # Index start at 0
     unew = Array{Float64, 2}(undef, param.nx, param.ny)        # updated solution
     x = Array{Float64, 1}(undef, param.nx)                     # grid in x direction
     y = Array{Float64, 1}(undef, param.ny)                     # grid in y direction
@@ -142,8 +144,7 @@ function solver(param)
     dt = param.cfl/(abs(a)/dx + abs(b)/dy)
     sigma_x = abs(a) * dt / dx            # as a substitute to cfl
     sigma_y = abs(b) * dt / dy            # as a substitute to cfl
-
-    win = collective_win_create(u)
+    win = collective_win_create(param, u)
     while t < Tf 
         # -------Crucial block-------------
         if t + dt > Tf
@@ -163,7 +164,7 @@ function solver(param)
         end
 
         for i in 1:param.nx, j in 1:param.ny
-            u[i+1, j+1] = unew[i, j]        # Use . for element-wise operation on vector
+            u[i, j] = unew[i, j]
         end
         t += dt
         it += 1
@@ -171,7 +172,7 @@ function solver(param)
     collective_win_free(win)                # free the window of `u` array
 
     # Window creation for error calculation
-    win_err = collective_win_create(err)
+    win_err = collective_win_create(param, err)
 
     @timeit to "error_cal!" begin
         err[1] = error_cal!(param, exact_sol, u)
@@ -195,7 +196,7 @@ function solver(param)
     end
     # Writing solution to files
     open("num_sol2D_par_$rank.txt","w") do io
-        writedlm(io, u[2:end-1,2:end-1])
+        writedlm(io, u[1:end-1,1:end-1])
     end
     open("exact_sol2D_par_$rank.txt","w") do io
         writedlm(io, exact_sol)
@@ -211,7 +212,7 @@ end
     _ymin, _ymax = 0.0, 1.0               # [ymin, ymax]
 
     a, b = 1.0, 1.0                       # velocity
-    nx, _ny = 200, 200
+    nx, _ny = 100, 100
     Tf = 1
     cfl = 0.8
     dx = (xmax - xmin)/(nx)
@@ -219,15 +220,20 @@ end
 
     ny = div(_ny, nprocs)                 # Dividing `ny` among processes
 
+    # ------------------------------------------------------------------
+    # Order of calculating `ymin` then `if...end` and then `ymax` should
+    # be maintained, it leads to correct distribution of grid when
+    # `ny % nprocs !== 0`
+
+    # Distributing domain in `y` among `nprocs`
+    ymin = _ymin + (rank*dy*ny)
     # if `_ny` is not divisible by `nprocs` then 
     # `ny` will have `remainder` columns 
     if rank == nprocs - 1
         ny = _ny - (ny * rank)
     end
-
-    # Distributing domain in `y` among `nprocs`
-    ymin = _ymin + (rank*dy*ny)
     ymax = ymin + (dy*ny)
+    # -------------------------------------------------------------------
 
     param = (; nx, ny, _ny, Tf, dx, dy, xmin, xmax, ymin, ymax, a, b, cfl)
     @show param
