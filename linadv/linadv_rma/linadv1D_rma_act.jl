@@ -41,11 +41,17 @@ dx = (xmax - xmin)/(N - 1)
 
 # if N % size !== 0 then last rank will have different number of cells
 # otherwise, same.
+
+# ----------------------------------------------------------------------
+# Order of calculating `xmin_local` then `if...end` and then `xmax_local`
+# should be maintained, it leads to correct distribution of grid when
+# `N % size !== 0`
 xmin_local = xmin + dx * rank * N_local
 if rank == size - 1
     N_local = N - rank*N_local
 end
 xmax_local = xmin_local + dx * N_local
+# -----------------------------------------------------------------------
 
 x_local = fill(0.0, N_local)
 for i in 1:N_local
@@ -126,7 +132,8 @@ function solver(param)
     u = fill(0.0, param.N_local + 2)            # Initial solution
     unew = fill(0.0, param.N_local + 2)         # Updated solution
     exact_sol = fill(0.0, param.N_local)        # exact solution array
-    
+    err = fill(0.0, 1)
+
     # 1-D grid generation
     exact_solution!(param, x_local, exact_sol)
 
@@ -155,14 +162,17 @@ function solver(param)
         t += dt
         it += 1
     end
-    local_err = error_cal(param, exact_sol, u)
-    MPI.Accumulate!(local_err, MPI.SUM, win; rank=0, disp=0)
     collective_win_free(win)
+    win_err = collective_win_create(err)
+    err[1] = error_cal(param, exact_sol, u)
+    MPI.Win_fence(win_err)
+    MPI.Accumulate!(err[1], MPI.SUM, win_err; rank=0, disp=0)
+    collective_win_free(win_err)
     
     if rank == 0
         # Output to terminal    
         println("---------------------------")
-        println("Error is: ", local_err)
+        println("Error is: ", err)
         println("Iterations: ", it)
         println("---------------------------")
     end
