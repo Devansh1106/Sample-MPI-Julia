@@ -40,11 +40,17 @@ dx = (xmax - xmin)/(N - 1)
 
 # if N % size !== 0 then last rank will have different number of cells
 # otherwise, same.
+
+# ----------------------------------------------------------------------
+# Order of calculating `xmin_local` then `if...end` and then `xmax_local`
+# should be maintained, it leads to correct distribution of grid when
+# `N % size !== 0`
 xmin_local = xmin + dx * rank * N_local
 if rank == size - 1
     N_local = N - rank*N_local
 end
 xmax_local = xmin_local + dx * N_local
+# -----------------------------------------------------------------------
 
 x_local = fill(0.0, N_local)
 for i in 1:N_local
