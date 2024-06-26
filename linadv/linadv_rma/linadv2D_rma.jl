@@ -5,7 +5,6 @@
 # Computational domain [0,1] × [0,1]
 
 using DelimitedFiles
-using Plots
 using TimerOutputs
 using MPI
 MPI.Init()
@@ -73,6 +72,8 @@ function halo_exchange!(param, u, win)
         prev = (rank + nprocs - 1) % nprocs
         buf = fill(0.0, param.nx+2)
         buf1 = fill(0.0, param.nx+2)
+
+        # Sending the second last column of each rank to `next` rank
         for i in 1:param.nx+2
             buf[i] = u[i, end-1]
         end
@@ -80,12 +81,14 @@ function halo_exchange!(param, u, win)
         MPI.Put!(buf, win; rank=next, disp=0)                               # origin_buf, window; target_rank, disp
         MPI.Win_unlock(win, rank=next)
 
+        # Sending the second column of each rank to `prev` rank
         for i in 1:param.nx+2
             buf1[i] = u[i,2]
         end
 
+        # Displacement calculation according to target_rank
         if rank == 0
-            d = param._ny - param.ny * (nprocs-1)
+            d = param._ny - param.ny * (nprocs-1)                           # param._ny is undistributed grid size in y 
             _disp = (d+1) * (param.nx+2)
         elseif rank == nprocs - 1
             d = div(param._ny, nprocs)
@@ -100,11 +103,13 @@ function halo_exchange!(param, u, win)
     MPI.Win_fence(win)
 end
 
+# Window creation routine
 function collective_win_create(u)
     win = MPI.Win_create(u, comm)
     return win
 end
     
+# Window free routine
 function collective_win_free(win)
     MPI.free(win)
 end
@@ -156,20 +161,25 @@ function solver(param)
         @timeit to "update_lw!" begin
             update_lw!(param, u, unew, sigma_x, sigma_y)
         end
+
         for i in 1:param.nx, j in 1:param.ny
             u[i+1, j+1] = unew[i, j]        # Use . for element-wise operation on vector
         end
         t += dt
         it += 1
     end
-    collective_win_free(win)
+    collective_win_free(win)                # free the window of `u` array
+
+    # Window creation for error calculation
     win_err = collective_win_create(err)
+
     @timeit to "error_cal!" begin
         err[1] = error_cal!(param, exact_sol, u)
     end
     MPI.Win_fence(win_err)
     MPI.Accumulate!(err[1], MPI.SUM, win_err; rank=0, disp=0)
-    collective_win_free(win_err)
+
+    collective_win_free(win_err)            # free the error window 
 
     if rank == 0
         # Output to terminal    
@@ -195,27 +205,34 @@ function solver(param)
     end
 end
 
-# for inputting parameters of the simulation
-xmin, xmax = 0.0, 1.0                 # [xmin, xmax]
-_ymin, _ymax = 0.0, 1.0               # [ymin, ymax]
+@timeit to "Global variables" begin
+    # for inputting parameters of the simulation
+    xmin, xmax = 0.0, 1.0                 # [xmin, xmax]
+    _ymin, _ymax = 0.0, 1.0               # [ymin, ymax]
 
-a, b = 1.0, 1.0                       # velocity
-nx, _ny = 200, 200
-Tf = 1
-cfl = 0.8
-dx = (xmax - xmin)/(nx)
-dy = (_ymax - _ymin)/(_ny)
+    a, b = 1.0, 1.0                       # velocity
+    nx, _ny = 200, 200
+    Tf = 1
+    cfl = 0.8
+    dx = (xmax - xmin)/(nx)
+    dy = (_ymax - _ymin)/(_ny)
 
-ny = div(_ny, nprocs)                 # Dividing nx among processes
-if rank == nprocs - 1
-    ny = _ny - (ny * rank)
+    ny = div(_ny, nprocs)                 # Dividing `ny` among processes
+
+    # if `_ny` is not divisible by `nprocs` then 
+    # `ny` will have `remainder` columns 
+    if rank == nprocs - 1
+        ny = _ny - (ny * rank)
+    end
+
+    # Distributing domain in `y` among `nprocs`
+    ymin = _ymin + (rank*dy*ny)
+    ymax = ymin + (dy*ny)
+
+    param = (; nx, ny, _ny, Tf, dx, dy, xmin, xmax, ymin, ymax, a, b, cfl)
+    @show param
 end
 
-ymin = _ymin + (rank*dy*ny)
-ymax = ymin + (dy*ny)
-
-param = (; nx, ny, _ny, Tf, dx, dy, xmin, xmax, ymin, ymax, a, b, cfl)
-@show param
 @timeit to "Solver" solver(param)
 if rank == 0
     show(to)
