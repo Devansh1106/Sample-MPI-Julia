@@ -104,11 +104,20 @@ function halo_exchange!(param, u, win)
     MPI.Win_fence(win)
 end
 
+# Use this when `u` is not a julia array/subarray 
+# (here `u` is OffsetArray)
 # Window creation routine
 function collective_win_create(param, u)
-    win = MPI.Win_create(pointer(u), (param.nx+2) * (param.ny+2), sizeof(Float64), comm)
+    win = MPI.Win_create(pointer(u), (param.nx+2) * (param.ny+2), sizeof(Float64), comm)    # pointer(u), window_size, disp_unit, comm
     return win
 end
+
+# When `u` is julia array/subarray, use below routine
+
+# function collective_win_create(u)
+#     win = MPI.Win_create(u, comm)
+#     return win
+# end
     
 # Window free routine
 function collective_win_free(win)
