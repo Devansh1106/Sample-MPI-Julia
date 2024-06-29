@@ -1,0 +1,11 @@
+Manifest.toml
+Project.toml
+LocalPreferences.toml
+.vscode
+num_sol.txt
+exact_sol.txt
+exact_sol2D.txt
+num_sol2D.txt
+exact_parallel.txt
+numerical_parallel.txt
+.gitignore
