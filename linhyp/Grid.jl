@@ -9,7 +9,7 @@ struct CartesianGrid
 end
 
 # Uniform cartesian grid 
-function make_grid(problem::Problem, param::Parameters)
+function make_grid(problem, param)
     nvar = problem.nvar
     xmin, xmax = problem.domain 
     nx = param.grid_size
@@ -19,9 +19,12 @@ function make_grid(problem::Problem, param::Parameters)
     println("Grid with number of points = $nx")
     println("(xmin, xmax) = ($xmin, $xmax)")
     xf = LinRange(xmin, xmax, nx+1)
-    return CartesianGrid((xmin, xmax), nx, xc, xf, dx)
+    dx1 = fill(0.0, nx)
+    dx1 .= dx
+    return CartesianGrid((xmin, xmax), nx, xc, xf, dx1)
 end
 
 export make_grid
+export CartesianGrid
 
 end # module
