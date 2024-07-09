@@ -1,0 +1,12 @@
+julia> include("linhyp/run_const_advection.jl")
+[ Info: Precompiling Grid [top-level]
+[ Info: Precompiling HypSys1D [top-level]
+┌ Warning: Module HypSys1D with build ID ffffffff-ffff-ffff-0012-090ec31771c6 is missing from the cache.
+│ This may mean HypSys1D [top-level] does not support precompilation but is imported by a module that does.
+└ @ Base loading.jl:1948
+[ Info: Skipping precompilation since __precompile__(false). Importing HypSys1D [top-level].
+[ Info: Precompiling EqLinAdv [top-level]
+┌ Warning: Module HypSys1D with build ID ffffffff-ffff-ffff-0012-090f088690cc is missing from the cache.
+│ This may mean HypSys1D [top-level] does not support precompilation but is imported by a module that does.
+└ @ Base loading.jl:1948
+[ Info: Skipping precompilation since __precompile__(false). Importing EqLinAdv [top-level].
