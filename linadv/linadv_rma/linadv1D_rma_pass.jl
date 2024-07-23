@@ -83,7 +83,7 @@ function get_ghost_values!(param, u, win)
         # MPI.Win_flush(next, win)          # ensure completion at target process; not needed here since there are no subsequent RMA ops here
         MPI.Get!(buf1, win; rank=next, disp=1)
         MPI.Win_unlock(win, rank=next)
-        u[N_local+2] = buf1[1]
+        u[N_local+2] = buf1[1]          # this separate buffer is used because MPI.Get! receives value in buffer only but u[N_local+2] is not a buffer.
     else
         buf2 = fill(0.0, 1)
         MPI.Win_lock(win; rank=next, type=MPI.LOCK_SHARED, nocheck=true)    # window; target_rank, lock_type, nocheck::bool
@@ -91,7 +91,7 @@ function get_ghost_values!(param, u, win)
         # MPI.Win_flush(next, win)          # ensure completion at target process; not needed here since there are no subsequent RMA ops here
         MPI.Get!(buf2, win; rank=next, disp=2)
         MPI.Win_unlock(win; rank=next)
-        u[N_local+2] = buf2[1]
+        u[N_local+2] = buf2[1]          # this separate buffer is used because MPI.Get! receives value in buffer only but u[N_local+2] is not a buffer.
     end
     MPI.Win_fence(win)
 end
